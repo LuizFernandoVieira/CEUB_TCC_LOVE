@@ -9,8 +9,11 @@
 ------------
 -- LIBS
 ------------
-local loveframes = require("loveframes")
-
+local loveframes  = require "loveframes"
+local Gamestate   = require "hump.gamestate"
+local Timer       = require "hump.timer"
+local Class       = require "hump.class"
+local Camera      = require "hump.camera"
 ------------
 -- GUI
 ------------
@@ -20,34 +23,55 @@ local buttonQuit
 local buttonSinglePlayer
 local buttonMultiPlayer
 local buttonBack
-
 ------------
--- CLASSES
+-- CLASSES*
 ------------
-local GameObject = {}
-local Player = {}
-local Floor = {}
-local Sprite = {}
-
+local GameObject  = {}
+local GameActor   = {}
+local Player      = {}
+local Floor       = {}
+local Sprite      = {}
+local Bow         = {}
+GameObject.__index  = GameObject
+GameActor.__index   = GameActor
+Player.__index      = Player
+Sprite.__index      = Sprite
+Bow.__index         = Bow
+------------
+-- INHERITANCE
+------------
+setmetatable(GameObject, {
+  __call = function (cls, ...)
+    local self = setmetatable({}, cls)
+    self:_init(...)
+    return self
+  end,
+})
+setmetatable(GameActor, {
+  __index = GameObject, -- this is what makes the inheritance work
+  __call = function (cls, ...)
+    local self = setmetatable({}, cls)
+    self:_init(...)
+    return self
+  end,
+})
 ------------
 -- OBJECTS
 ------------
-local physicsWorld = nil
-local player = nil
-local floor = nil
-
+local physicsWorld  = nil
+local player        = nil
+local floor         = nil
 ------------
 -- DEBUG
 ------------
+local debug       = false
 local mouseString = ""
-
 ------------
 -- AUDIO
 ------------
-local music
-local volume = 0.5
-local soundEffect
-
+local music       = nil
+local volume      = 0.5
+local soundEffect = nil
 ------------
 -- JOYSTICKS
 ------------
@@ -57,10 +81,11 @@ local joystick
 ------------
 -- LOAD
 ------------
-function love.load()
+function love.load(arg)
   loveframesConfigurations()
   loveConfigurations()
   joystricksConfigurations()
+  debugConfigurations(arg)
   loadGUI()
   loadObjects()
   loadAudio()
@@ -82,6 +107,12 @@ end
 function joystricksConfigurations()
   joysticks = love.joystick.getJoysticks()
   joystick = joysticks[1]
+end
+
+function debugConfigurations()
+  if(agr ~= nil) then
+    debug = true
+  end
 end
 
 function loadGUI()
@@ -152,8 +183,8 @@ function loadButtonBack()
 end
 
 function loadObjects()
-  physicsWorld  = love.physics.newWorld(0, 9.81*32, true)
-  player        = Player.new(love.graphics.getWidth()/2, love.graphics.getHeight()/2, "img/player_parado_32x32.png", 16, 32, 32, physicsWorld)
+  physicsWorld  = love.physics.newWorld(0, 9.81*128, true)
+  player        = Player.new(love.graphics.getWidth()/2, love.graphics.getHeight()/2, "img/player.png", 1, 32, 32, physicsWorld)
   floor         = Floor.new(0, love.graphics.getHeight(), physicsWorld)
 
   physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
@@ -172,10 +203,15 @@ function love.update(dt)
   physicsWorld:update(dt)
   updateInputs()
 
-  player.update(dt)
+  player:update(dt)
+  updateDebug()
+end
 
-  local x, y = love.mouse.getPosition()
-  mouseString = "Mouse Position: " .. x .. ", " .. y
+function updateDebug()
+  if(debug == true) then
+    local x, y = love.mouse.getPosition()
+    mouseString = "Mouse Position: " .. x .. ", " .. y
+  end
 end
 
 function updateInputs()
@@ -187,34 +223,54 @@ end
 function updateKeyInputs()
   if love.keyboard.isDown('a') then
     player:moveLeft()
-  end
-  if love.keyboard.isDown('d') then
+  elseif love.keyboard.isDown('d') then
     player:moveRight()
+  else
+    player.desiredVelocity = 0
   end
+
   if love.keyboard.isDown('s') then
   end
 end
 
 function updateMouseInputs()
   if love.mouse.isDown(1) then
-    mouseString = mouseString .. "\nLeft button pressed"
+    if(debug == true) then
+      mouseString = mouseString .. "\nLeft button pressed"
+    end
   end
   if love.mouse.isDown(2) then
-    mouseString = mouseString .. "\nRight button pressed"
+    if(debug == true) then
+      mouseString = mouseString .. "\nRight button pressed"
+    end
   end
   if love.mouse.isDown(3) then
-    mouseString = mouseString .. "\nMiddle button pressed"
+    if(debug == true) then
+      mouseString = mouseString .. "\nMiddle button pressed"
+    end
   end
 end
 
 function updateJoystickInputs()
   if not joystick then return end
 
-  if joystick:isGamepadDown("dpleft") then
+  -- leftx -> The x-axis of the left thumbstick.
+  -- lefty -> The y-axis of the left thumbstick.
+  -- rightx -> The x-axis of the right thumbstick.
+  -- righty -> The y-axis of the right thumbstick.
+  -- valores ao redor de 0.2 sao irrelevantes
+  -- x: -1 esquerda 1 direita
+
+  if  joystick:isGamepadDown("dpleft") or
+      joystick:getGamepadAxis("leftx") < -0.2 then
     player:moveLeft()
-  elseif joystick:isGamepadDown("dpright") then
+  elseif  joystick:isGamepadDown("dpright") or
+          joystick:getGamepadAxis("leftx") > 0.2 then
     player:moveRight()
+  else
+    player.desiredVelocity = 0
   end
+
   if joystick:isGamepadDown("dpdown") then
   end
 end
@@ -264,6 +320,9 @@ function love.keypressed(key, unicode)
   if key == "space" then
     player:shot()
   end
+  -- if key == "r" then
+  --   debug.debug()
+  -- end
 end
 
 function love.keyreleased(key)
@@ -334,61 +393,155 @@ end
 ------------
 -- GAME OBJECT
 ------------
-GameObject.new = function(x, y, image, physicsWorld)
-  local self = self or {}
+function GameObject:_init(physicsWorld)
+  self.physics          = {}
+  self.physics.world    = physicsWorld
+end
 
-  self.x = x
-  self.y = y
+function GameObject:get_physics()
+  return self.physics
+end
+
+function GameObject:get_physicsWorld()
+  return self.physics.world
+end
+
+------------
+-- GAME ACTOR
+------------
+function GameActor:_init(physicsWorld, x, y)
+  GameObject._init(self, physicsWorld) -- call the base class constructor
+
+  self.physics.body     = love.physics.newBody(physicsWorld, x, y, "dynamic")
+  self.physics.shape    = love.physics.newRectangleShape(32, 32)
+  self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
+end
+
+function GameActor:moveLeft()
+  self.physics.body:applyForce(-300, 0)
+end
+
+function GameActor:moveRight()
+  self.physics.body:applyForce(300, 0)
+end
+
+function GameActor:get_Body()
+  return self.physics.body
+end
+
+function GameActor:get_Shape()
+  return self.physics.shape
+end
+
+function GameActor:get_Fixture()
+  return self.physics.fixture
+end
+
+------------
+-- BOW
+------------
+Bow.new = function(player, image, physicsWorld)
+  local self = setmetatable({}, Bow)
+
+  self.player           = player
+  self.sprite           = Sprite.new(self, image, 1, 32, 32)
+  self.physics          = {}
+  self.physics.world    = physicsWorld
+  self.physics.body     = love.physics.newBody(self.physics.world, player.physics.body:getX() + 16 , player.physics.body:getY(), "dynamic")
 
   return self
+end
+
+Bow.update = function(self, dt)
+  self.physics.body.x = player.physics.body:getPosition().x
+  self.physics.body.y = player.physics.body:getPosition().y
+end
+
+Bow.draw = function(self)
+  self.sprite:draw(
+    self.image,
+    self.player.facingRight,
+    self.physics.body:getX(),
+    self.physics.body:getY()
+  )
+end
+
+Bow.shot = function(self)
 end
 
 ------------
 -- PLAYER
 ------------
 Player.new = function(x, y, image, frameCount, width, height, physicsWorld)
-  local self = self or {}
+  local self = setmetatable({}, Player)
 
-  self.x                = x
-  self.y                = y
   self.sprite           = Sprite.new(self, image, frameCount, width, height)
+  self.facingRight      = true
   self.grounded         = false
   self.physics          = {}
   self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(self.physics.world, self.x, self.y, "dynamic")
+  self.physics.body     = love.physics.newBody(self.physics.world, x, y, "dynamic")
   self.physics.shape    = love.physics.newRectangleShape(32, 32)
   self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
+  self.desiredVelocity  = 0
+  self.bow              = Bow.new(self, "img/bow.png", physicsWorld)
+  self.joint            = love.physics.newDistanceJoint(
+                            self.physics.body,
+                            self.bow.physics.body,
+                            self.physics.body:getX(),
+                            self.physics.body:getY(),
+                            self.bow.physics.body:getX(),
+                            self.bow.physics.body:getY(),
+                            false
+                          )
 
-  self.update = function(dt)
-    self.sprite.update(dt)
-  end
-
-  self.draw = function()
-    self.sprite.draw(
-      self.image,
-      self.physics.body:getX(),
-      self.physics.body:getY()
-    )
-  end
-
-  self.moveLeft = function()
-    self.physics.body:applyForce(-300, 0)
-  end
-
-  self.moveRight = function()
-    self.physics.body:applyForce(300, 0)
-  end
-
-  self.jump = function()
-    if self.grounded == true then
-      self.physics.body:applyLinearImpulse(0, -300)
-    end
-  end
-
-  self.shot = function()
-  end
-
+  self.physics.body:setMass(0.5)
   return self
+end
+
+Player.update = function(self, dt)
+  self.sprite:update(dt)
+
+  -- i = m * dv
+  local velChange = self.desiredVelocity - self.physics.body:getLinearVelocity();
+  local impulse = self.physics.body:getMass() * velChange;
+
+  self.physics.body:applyLinearImpulse(impulse, 0)
+end
+
+Player.draw = function(self)
+  self.sprite:draw(
+    self.image,
+    self.facingRight,
+    self.physics.body:getX(),
+    self.physics.body:getY()
+  )
+  self.bow:draw()
+end
+
+Player.moveLeft = function(self)
+  if self.facingRight == true then
+    self.facingRight = false
+  end
+  self.desiredVelocity = -150
+end
+
+Player.moveRight = function(self)
+  if self.facingRight ~= true then
+    self.facingRight = true
+  end
+  self.desiredVelocity = 150
+end
+
+Player.jump = function(self)
+  if self.grounded == true then
+    local impulse = self.physics.body:getMass() * 500;
+    self.physics.body:applyLinearImpulse(0, -impulse)
+    self.grounded = false
+  end
+end
+
+Player.shot = function(self)
 end
 
 ------------
@@ -412,7 +565,7 @@ end
 -- SPRITE
 ------------
 Sprite.new = function(player, image, frameCout, width, height)
-  local self = self or {}
+  local self = setmetatable({}, Sprite)
 
   self.parent       = player
   self.image        = love.graphics.newImage(image)
@@ -432,26 +585,34 @@ Sprite.new = function(player, image, frameCout, width, height)
      )
   end
 
-  self.update = function(dt)
-    self.timeElapsed = self.timeElapsed + dt
+  return self
+end
 
-    if self.timeElapsed > 1 then
-      if self.currentFrame < self.frameCout then
-        self.currentFrame = self.currentFrame + 1
-      else
-        self.currentFrame = 1
-      end
+Sprite.update = function(self, dt)
+  self.timeElapsed = self.timeElapsed + dt
+
+  if self.timeElapsed > 1 then
+    if self.currentFrame < self.frameCout then
+      self.currentFrame = self.currentFrame + 1
+    else
+      self.currentFrame = 1
     end
   end
+end
 
-  self.draw = function(image, x, y)
+Sprite.draw = function(self, image, facingRight, x, y)
+  local w = self.image:getWidth() / self.frameCout
+  if facingRight == true then
     love.graphics.draw(
       self.image,
       self.frames[self.currentFrame],
-      x,
-      y
+      x,y
+    )
+  else
+    love.graphics.draw(
+      self.image,
+      self.frames[self.currentFrame],
+      x, y, 0, -1, 1, w, 0
     )
   end
-
-  return self
 end
