@@ -29,14 +29,16 @@ local buttonBack
 local GameObject  = {}
 local GameActor   = {}
 local Player      = {}
+local Bow         = {}
+local Arrow       = {}
 local Floor       = {}
 local Sprite      = {}
-local Bow         = {}
 GameObject.__index  = GameObject
 GameActor.__index   = GameActor
 Player.__index      = Player
-Sprite.__index      = Sprite
 Bow.__index         = Bow
+Arrow.__index       = Arrow
+Sprite.__index      = Sprite
 ------------
 -- INHERITANCE
 ------------
@@ -48,7 +50,7 @@ setmetatable(GameObject, {
   end,
 })
 setmetatable(GameActor, {
-  __index = GameObject, -- this is what makes the inheritance work
+  __index = GameObject,
   __call = function (cls, ...)
     local self = setmetatable({}, cls)
     self:_init(...)
@@ -61,6 +63,7 @@ setmetatable(GameActor, {
 local physicsWorld  = nil
 local player        = nil
 local floor         = nil
+local arrows        = {}
 ------------
 -- DEBUG
 ------------
@@ -184,7 +187,12 @@ end
 
 function loadObjects()
   physicsWorld  = love.physics.newWorld(0, 9.81*128, true)
-  player        = Player.new(love.graphics.getWidth()/2, love.graphics.getHeight()/2, "img/player.png", 1, 32, 32, physicsWorld)
+  player        = Player.new(
+    love.graphics.getWidth()/2,
+    love.graphics.getHeight()/2,
+    "img/player.png", 1, 32, 32,
+    physicsWorld
+  )
   floor         = Floor.new(0, love.graphics.getHeight() - 32, physicsWorld)
 
   physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
@@ -204,14 +212,13 @@ function love.update(dt)
   updateInputs()
 
   player:update(dt)
+  arrows.update(dt)
 
   updateDebug()
 end
 
 function updateDebug()
   if(debug == true) then
-    -- local x, y = love.mouse.getPosition()
-    -- mouseString = "Mouse Position: " .. x .. ", " .. y
   end
 end
 
@@ -232,22 +239,57 @@ function updateKeyInputs()
 
   if love.keyboard.isDown('s') then
   end
+
+  if love.keyboard.isDown('left') then
+    player.bow:changeAngle(180)
+  end
+  if love.keyboard.isDown('right') then
+    player.bow:changeAngle(0)
+  end
+
+  if  love.keyboard.isDown('up') and
+  not love.keyboard.isDown('left') and
+  not love.keyboard.isDown('right') then
+    player.bow:changeAngle(270)
+  elseif love.keyboard.isDown('up') and
+  not love.keyboard.isDown('left') and
+      love.keyboard.isDown('right') then
+    player.bow:changeAngle(315)
+  elseif love.keyboard.isDown('up') and
+      love.keyboard.isDown('left') and
+  not love.keyboard.isDown('right') then
+    player.bow:changeAngle(225)
+  end
+
+  if  love.keyboard.isDown('down') and
+  not love.keyboard.isDown('left') and
+  not love.keyboard.isDown('right') then
+    print("UP")
+    player.bow:changeAngle(90)
+  elseif love.keyboard.isDown('down') and
+  not love.keyboard.isDown('left') and
+      love.keyboard.isDown('right') then
+    print("UP")
+    player.bow:changeAngle(45)
+  elseif love.keyboard.isDown('down') and
+      love.keyboard.isDown('left') and
+  not love.keyboard.isDown('right') then
+    print("UP")
+    player.bow:changeAngle(135)
+  end
 end
 
 function updateMouseInputs()
   if love.mouse.isDown(1) then
     if(debug == true) then
-      -- mouseString = mouseString .. "\nLeft button pressed"
     end
   end
   if love.mouse.isDown(2) then
     if(debug == true) then
-      -- mouseString = mouseString .. "\nRight button pressed"
     end
   end
   if love.mouse.isDown(3) then
     if(debug == true) then
-      -- mouseString = mouseString .. "\nMiddle button pressed"
     end
   end
 end
@@ -327,6 +369,7 @@ function love.draw()
   loveframes.draw()
 
   player:draw()
+  arrows.draw()
 
   drawDebug()
 
@@ -336,10 +379,23 @@ end
 function drawDebug()
   if(debug == true) then
     love.graphics.setColor(250, 116, 107)
-    love.graphics.polygon("line", floor.physics.body:getWorldPoints(floor.physics.shape:getPoints()))
+    love.graphics.polygon(
+      "line",
+      floor.physics.body:
+        getWorldPoints(
+          floor.physics.shape:getPoints()
+        )
+    )
 
     love.graphics.setColor(189, 252, 196)
-    love.graphics.rectangle("line", player.physics.body:getX(), player.physics.body:getY(), 32, 32)
+    love.graphics.rectangle(
+      "line",
+      player.physics.body:
+        getX(),
+      player.physics.body:getY(),
+      32,
+      32
+    )
   end
 end
 
@@ -360,39 +416,6 @@ function love.keypressed(key, unicode)
   end
   if key == "space" then
     player:shot()
-  end
-
-  if key == "up" then
-    print("UP")
-    player.bow:changeAngle(270)
-  end
-  if key == "right" then
-    print("RIGHT")
-    player.bow:changeAngle(0)
-  end
-  if key == "down" then
-    print("DOWN")
-    player.bow:changeAngle(90)
-  end
-  if key == "left" then
-    print("LEFT")
-    player.bow:changeAngle(180)
-  end
-  if key == "up" and love.keyboard.isDown('left') then
-    print("UP LEFT")
-    player.bow:changeAngle(225)
-  end
-  if key == "up" and love.keyboard.isDown('right') then
-    print("UP RIGHT")
-    player.bow:changeAngle(315)
-  end
-  if key == "down" and love.keyboard.isDown('left') then
-    print("UP RIGHT")
-    player.bow:changeAngle(135)
-  end
-  if key == "down" and love.keyboard.isDown('right') then
-    print("UP RIGHT")
-    player.bow:changeAngle(45)
   end
 end
 
@@ -462,6 +485,20 @@ function love.joystickremoved(joystick)
 end
 
 ------------
+-- LISTS
+------------
+function arrows.update(dt)
+  for i, v in ipairs(arrows) do
+    v:update(dt)
+  end
+end
+
+function arrows.draw()
+  for i, v in ipairs(arrows) do
+    v:draw()
+  end
+end
+------------
 -- GAME OBJECT
 ------------
 function GameObject:_init(physicsWorld)
@@ -481,11 +518,15 @@ end
 -- GAME ACTOR
 ------------
 function GameActor:_init(physicsWorld, x, y)
-  GameObject._init(self, physicsWorld) -- call the base class constructor
+  GameObject._init(self, physicsWorld)
 
   self.physics.body     = love.physics.newBody(physicsWorld, x, y, "dynamic")
   self.physics.shape    = love.physics.newRectangleShape(32, 32)
-  self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
+  self.physics.fixture  = love.physics.newFixture(
+                            self.physics.body,
+                            self.physics.shape,
+                            1
+                          )
 end
 
 function GameActor:moveLeft()
@@ -509,6 +550,54 @@ function GameActor:get_Fixture()
 end
 
 ------------
+-- ARROW
+------------
+Arrow.new = function(physicsWorld, bow, angle)
+  local self = setmetatable({}, Arrow)
+
+  self.bow              = bow
+  self.sprite           = Sprite.new(self, "img/arrow.png", 1, 32, 32)
+  self.physics          = {}
+  self.physics.world    = physicsWorld
+  self.physics.body     = love.physics.newBody(
+                            self.physics.world,
+                            self.bow.physics.body:getX(),
+                            self.bow.physics.body:getY(),
+                            "dynamic"
+                          )
+  self.physics.shape    = love.physics.newPolygonShape(
+                            -1.4*16, 0,
+                            0, -0.1*16,
+                            0.6*16, 0,
+                            0, 0.1*16
+                          )
+  self.physics.fixture  = love.physics.newFixture(
+                            self.physics.body,
+                            self.physics.shape,
+                            1
+                          )
+
+  self.physics.fixture:setMask(2)
+  self.physics.fixture:setFilterData(1, 0, 0)
+  self.physics.body:isBullet()
+  self.physics.body:setMass(0.1)
+
+  return self
+end
+
+Arrow.update = function(self, dt)
+end
+
+Arrow.draw = function(self)
+  self.sprite:draw(
+    self.image,
+    true,
+    self.physics.body:getX(),
+    self.physics.body:getY()
+  )
+end
+
+------------
 -- BOW
 ------------
 Bow.new = function(player, image, physicsWorld)
@@ -519,9 +608,18 @@ Bow.new = function(player, image, physicsWorld)
   self.sprite           = Sprite.new(self, image, 1, 32, 32)
   self.physics          = {}
   self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(self.physics.world, player.physics.body:getX() , player.physics.body:getY(), "dynamic")
+  self.physics.body     = love.physics.newBody(
+                            self.physics.world,
+                            player.physics.body:getX(),
+                            player.physics.body:getY(),
+                            "dynamic"
+                          )
   self.physics.shape    = love.physics.newRectangleShape(32, 32)
-  self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
+  self.physics.fixture  = love.physics.newFixture(
+                            self.physics.body,
+                            self.physics.shape,
+                            1
+                          )
 
   self.physics.fixture:setMask(2)
   self.physics.fixture:setFilterData(1, 0, 0)
@@ -547,6 +645,32 @@ Bow.changeAngle = function(self, angle)
 end
 
 Bow.shot = function(self)
+  local arrow = Arrow.new(physicsWorld, self, self.angle)
+  table.insert(arrows, arrow)
+
+  local impulse = arrow.physics.body:getMass() * 600;
+  local ang = self.physics.body:getAngle()
+
+  if ang == 0 then
+    arrow.physics.body:applyLinearImpulse( impulse, 0      )
+  elseif ang == 45 then
+    arrow.physics.body:applyLinearImpulse( impulse, impulse)
+  elseif ang == 90 then
+    arrow.physics.body:applyLinearImpulse(       0, impulse)
+  elseif ang == 135 then
+    arrow.physics.body:applyLinearImpulse(-impulse, impulse)
+  elseif ang == 180 then
+    arrow.physics.body:applyLinearImpulse(-impulse, 0      )
+  elseif ang == 225 then
+    arrow.physics.body:applyLinearImpulse(-impulse,-impulse)
+  elseif ang == 270 then
+    arrow.physics.body:applyLinearImpulse(       0,-impulse)
+  elseif ang == 315 then
+    arrow.physics.body:applyLinearImpulse( impulse,-impulse)
+  else
+    arrow.physics.body:applyLinearImpulse( impulse, 0      )
+  end
+
 end
 
 ------------
@@ -560,9 +684,18 @@ Player.new = function(x, y, image, frameCount, width, height, physicsWorld)
   self.grounded         = false
   self.physics          = {}
   self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(self.physics.world, x, y, "dynamic")
+  self.physics.body     = love.physics.newBody(
+                            self.physics.world,
+                            x,
+                            y,
+                            "dynamic"
+                          )
   self.physics.shape    = love.physics.newRectangleShape(32, 32)
-  self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
+  self.physics.fixture  = love.physics.newFixture(
+                            self.physics.body,
+                            self.physics.shape,
+                            1
+                          )
   self.desiredVelocity  = 0
   self.bow              = Bow.new(self, "img/bow.png", physicsWorld)
 
@@ -575,7 +708,8 @@ Player.update = function(self, dt)
   self.sprite:update(dt)
 
   -- i = m * dv
-  local velChange = self.desiredVelocity - self.physics.body:getLinearVelocity();
+  local velChange =
+    self.desiredVelocity - self.physics.body:getLinearVelocity();
   local impulse = self.physics.body:getMass() * velChange;
 
   self.physics.body:applyLinearImpulse(impulse, 0)
@@ -616,6 +750,7 @@ Player.jump = function(self)
 end
 
 Player.shot = function(self)
+  self.bow:shot()
 end
 
 ------------
@@ -626,9 +761,19 @@ Floor.new = function(x, y, physicsWorld)
 
   self.physics          = {}
   self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(physicsWorld, x + love.graphics.getWidth()/2 , y)
-  self.physics.shape    = love.physics.newRectangleShape(love.graphics.getWidth(), 32)
-  self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape)
+  self.physics.body     = love.physics.newBody(
+                            physicsWorld,
+                            x + love.graphics.getWidth()/2 ,
+                            y
+                          )
+  self.physics.shape    = love.physics.newRectangleShape(
+                            love.graphics.getWidth(),
+                            32
+                          )
+  self.physics.fixture  = love.physics.newFixture(
+                            self.physics.body,
+                            self.physics.shape
+                          )
 
   return self
 end
@@ -693,6 +838,8 @@ Sprite.drawRotation = function(self, image, angle, x, y)
   love.graphics.draw(
     self.image,
     self.frames[self.currentFrame],
-    x + self.image:getWidth()/2, y + self.image:getHeight()/2, math.rad(angle), 1, 1, -self.image:getWidth()/2, self.image:getHeight()/2
+    x + self.image:getWidth()/2, y + self.image:getHeight()/2,
+    math.rad(angle), 1, 1, -self.image:getWidth()/2,
+    self.image:getHeight()/2
   )
 end
