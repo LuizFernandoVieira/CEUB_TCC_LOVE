@@ -185,7 +185,7 @@ end
 function loadObjects()
   physicsWorld  = love.physics.newWorld(0, 9.81*128, true)
   player        = Player.new(love.graphics.getWidth()/2, love.graphics.getHeight()/2, "img/player.png", 1, 32, 32, physicsWorld)
-  floor         = Floor.new(0, love.graphics.getHeight(), physicsWorld)
+  floor         = Floor.new(0, love.graphics.getHeight() - 32, physicsWorld)
 
   physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
 end
@@ -204,13 +204,14 @@ function love.update(dt)
   updateInputs()
 
   player:update(dt)
+
   updateDebug()
 end
 
 function updateDebug()
   if(debug == true) then
-    local x, y = love.mouse.getPosition()
-    mouseString = "Mouse Position: " .. x .. ", " .. y
+    -- local x, y = love.mouse.getPosition()
+    -- mouseString = "Mouse Position: " .. x .. ", " .. y
   end
 end
 
@@ -236,30 +237,23 @@ end
 function updateMouseInputs()
   if love.mouse.isDown(1) then
     if(debug == true) then
-      mouseString = mouseString .. "\nLeft button pressed"
+      -- mouseString = mouseString .. "\nLeft button pressed"
     end
   end
   if love.mouse.isDown(2) then
     if(debug == true) then
-      mouseString = mouseString .. "\nRight button pressed"
+      -- mouseString = mouseString .. "\nRight button pressed"
     end
   end
   if love.mouse.isDown(3) then
     if(debug == true) then
-      mouseString = mouseString .. "\nMiddle button pressed"
+      -- mouseString = mouseString .. "\nMiddle button pressed"
     end
   end
 end
 
 function updateJoystickInputs()
   if not joystick then return end
-
-  -- leftx -> The x-axis of the left thumbstick.
-  -- lefty -> The y-axis of the left thumbstick.
-  -- rightx -> The x-axis of the right thumbstick.
-  -- righty -> The y-axis of the right thumbstick.
-  -- valores ao redor de 0.2 sao irrelevantes
-  -- x: -1 esquerda 1 direita
 
   if  joystick:isGamepadDown("dpleft") or
       joystick:getGamepadAxis("leftx") < -0.2 then
@@ -269,6 +263,40 @@ function updateJoystickInputs()
     player:moveRight()
   else
     player.desiredVelocity = 0
+  end
+
+  if joystick:getGamepadAxis("lefty") < -0.7 then
+    player:jump()
+  end
+
+  if joystick:getGamepadAxis("righty") < -0.7 then
+    player.bow:changeAngle(270)
+  end
+  if joystick:getGamepadAxis("rightx") > 0.7 then
+    player.bow:changeAngle(0)
+  end
+  if joystick:getGamepadAxis("righty") > 0.7 then
+    player.bow:changeAngle(90)
+  end
+  if joystick:getGamepadAxis("rightx") < -0.7 then
+    player.bow:changeAngle(180)
+  end
+
+  if  joystick:getGamepadAxis("righty") < -0.5 and
+      joystick:getGamepadAxis("rightx") >  0.5 then
+    player.bow:changeAngle(315)
+  end
+  if  joystick:getGamepadAxis("righty") >  0.5 and
+      joystick:getGamepadAxis("rightx") >  0.5 then
+    player.bow:changeAngle(45)
+  end
+  if  joystick:getGamepadAxis("righty") >  0.5 and
+      joystick:getGamepadAxis("rightx") <  -0.5 then
+    player.bow:changeAngle(135)
+  end
+  if  joystick:getGamepadAxis("righty") < -0.5 and
+      joystick:getGamepadAxis("rightx") < -0.5 then
+    player.bow:changeAngle(225)
   end
 
   if joystick:isGamepadDown("dpdown") then
@@ -299,7 +327,20 @@ function love.draw()
   loveframes.draw()
 
   player:draw()
+
+  drawDebug()
+
   love.graphics.print(mouseString)
+end
+
+function drawDebug()
+  if(debug == true) then
+    love.graphics.setColor(250, 116, 107)
+    love.graphics.polygon("line", floor.physics.body:getWorldPoints(floor.physics.shape:getPoints()))
+
+    love.graphics.setColor(189, 252, 196)
+    love.graphics.rectangle("line", player.physics.body:getX(), player.physics.body:getY(), 32, 32)
+  end
 end
 
 ------------
@@ -320,9 +361,39 @@ function love.keypressed(key, unicode)
   if key == "space" then
     player:shot()
   end
-  -- if key == "r" then
-  --   debug.debug()
-  -- end
+
+  if key == "up" then
+    print("UP")
+    player.bow:changeAngle(270)
+  end
+  if key == "right" then
+    print("RIGHT")
+    player.bow:changeAngle(0)
+  end
+  if key == "down" then
+    print("DOWN")
+    player.bow:changeAngle(90)
+  end
+  if key == "left" then
+    print("LEFT")
+    player.bow:changeAngle(180)
+  end
+  if key == "up" and love.keyboard.isDown('left') then
+    print("UP LEFT")
+    player.bow:changeAngle(225)
+  end
+  if key == "up" and love.keyboard.isDown('right') then
+    print("UP RIGHT")
+    player.bow:changeAngle(315)
+  end
+  if key == "down" and love.keyboard.isDown('left') then
+    print("UP RIGHT")
+    player.bow:changeAngle(135)
+  end
+  if key == "down" and love.keyboard.isDown('right') then
+    print("UP RIGHT")
+    player.bow:changeAngle(45)
+  end
 end
 
 function love.keyreleased(key)
@@ -444,26 +515,35 @@ Bow.new = function(player, image, physicsWorld)
   local self = setmetatable({}, Bow)
 
   self.player           = player
+  self.angle            =  0
   self.sprite           = Sprite.new(self, image, 1, 32, 32)
   self.physics          = {}
   self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(self.physics.world, player.physics.body:getX() + 16 , player.physics.body:getY(), "dynamic")
+  self.physics.body     = love.physics.newBody(self.physics.world, player.physics.body:getX() , player.physics.body:getY(), "dynamic")
+  self.physics.shape    = love.physics.newRectangleShape(32, 32)
+  self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
+
+  self.physics.fixture:setMask(2)
+  self.physics.fixture:setFilterData(1, 0, 0)
 
   return self
 end
 
 Bow.update = function(self, dt)
-  self.physics.body.x = player.physics.body:getPosition().x
-  self.physics.body.y = player.physics.body:getPosition().y
+  self.physics.body:setPosition(player.physics.body:getPosition())
 end
 
 Bow.draw = function(self)
-  self.sprite:draw(
+  self.sprite:drawRotation(
     self.image,
-    self.player.facingRight,
+    self.physics.body:getAngle(),
     self.physics.body:getX(),
     self.physics.body:getY()
   )
+end
+
+Bow.changeAngle = function(self, angle)
+  self.physics.body:setAngle(angle)
 end
 
 Bow.shot = function(self)
@@ -485,17 +565,9 @@ Player.new = function(x, y, image, frameCount, width, height, physicsWorld)
   self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape, 1)
   self.desiredVelocity  = 0
   self.bow              = Bow.new(self, "img/bow.png", physicsWorld)
-  self.joint            = love.physics.newDistanceJoint(
-                            self.physics.body,
-                            self.bow.physics.body,
-                            self.physics.body:getX(),
-                            self.physics.body:getY(),
-                            self.bow.physics.body:getX(),
-                            self.bow.physics.body:getY(),
-                            false
-                          )
 
   self.physics.body:setMass(0.5)
+  self.physics.fixture:setMask(2)
   return self
 end
 
@@ -507,6 +579,8 @@ Player.update = function(self, dt)
   local impulse = self.physics.body:getMass() * velChange;
 
   self.physics.body:applyLinearImpulse(impulse, 0)
+
+  self.bow:update(dt)
 end
 
 Player.draw = function(self)
@@ -550,11 +624,9 @@ end
 Floor.new = function(x, y, physicsWorld)
   local self = self or {}
 
-  self.x                = x
-  self.y                = y
   self.physics          = {}
   self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(physicsWorld, love.graphics.getWidth()/2, love.graphics.getHeight())
+  self.physics.body     = love.physics.newBody(physicsWorld, x + love.graphics.getWidth()/2 , y)
   self.physics.shape    = love.physics.newRectangleShape(love.graphics.getWidth(), 32)
   self.physics.fixture  = love.physics.newFixture(self.physics.body, self.physics.shape)
 
@@ -615,4 +687,12 @@ Sprite.draw = function(self, image, facingRight, x, y)
       x, y, 0, -1, 1, w, 0
     )
   end
+end
+
+Sprite.drawRotation = function(self, image, angle, x, y)
+  love.graphics.draw(
+    self.image,
+    self.frames[self.currentFrame],
+    x + self.image:getWidth()/2, y + self.image:getHeight()/2, math.rad(angle), 1, 1, -self.image:getWidth()/2, self.image:getHeight()/2
+  )
 end
