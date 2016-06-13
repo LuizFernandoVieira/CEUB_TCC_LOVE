@@ -1,7 +1,7 @@
 function love.conf(t)
   t.window.title = "Lua Test"         -- The window title (string)
-  t.window.width = 1024               -- The window width (number)
-  t.window.height = 600               -- The window height (number)
+  t.window.width =  832               -- The window width (number)
+  t.window.height = 640               -- The window height (number)
 
   t.console = true                    -- Attach a console (boolean, Windows only)
 

@@ -32,6 +32,7 @@ local Player      = {}
 local Bow         = {}
 local Arrow       = {}
 local Floor       = {}
+local Tile        = {}
 local Sprite      = {}
 GameObject.__index  = GameObject
 GameActor.__index   = GameActor
@@ -58,16 +59,24 @@ setmetatable(GameActor, {
   end,
 })
 ------------
--- OBJECTS
+-- TABLES
+------------
+local players       = {}
+local tiles         = {}
+local arrows        = {}
+------------
+-- OBJECT
 ------------
 local physicsWorld  = nil
 local player        = nil
-local floor         = nil
-local arrows        = {}
+------------
+-- CONSTANTS
+------------
+local GRAVITY_SCALE = 9.81 * 128
 ------------
 -- DEBUG
 ------------
-local debug       = false
+local debug       = true
 local mouseString = ""
 ------------
 -- AUDIO
@@ -103,8 +112,13 @@ function loveConfigurations()
   love.mouse.setCursor(love.mouse.getSystemCursor("hand"))
   love.physics.setMeter(32)
   love.graphics.setNewFont(24)
-  love.graphics.setBackgroundColor(200,200,200,100)
   love.audio.setVolume(volume)
+
+  if not debug then
+    love.graphics.setBackgroundColor(200,200,200,100)
+  else
+    love.graphics.setBackgroundColor(0,0,0,100)
+  end
 end
 
 function joystricksConfigurations()
@@ -186,16 +200,85 @@ function loadButtonBack()
 end
 
 function loadObjects()
-  physicsWorld  = love.physics.newWorld(0, 9.81*128, true)
-  player        = Player.new(
+  loadPhysicsWorld()
+  loadTileMap()
+  loadPlayer()
+  physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
+end
+
+function loadPhysicsWorld()
+  physicsWorld = love.physics.newWorld(0, GRAVITY_SCALE, true)
+end
+
+function loadTileMap()
+  map={
+  	{ 01, 01, 01, 01, 01, 01, 01, 01, 00, 00, 00, 01, 01, 01, 01, 00, 00, 00, 01, 01, 01, 01, 01, 01, 01, 01},
+  	{ 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01},
+  	{ 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01},
+  	{ 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01},
+  	{ 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01},
+  	{ 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 00, 00, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01},
+    { 01, 00, 00, 00, 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01, 00, 00, 00, 01},
+  	{ 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01},
+  	{ 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01},
+  	{ 01, 01, 01, 00, 00, 00, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 00, 01},
+  	{ 01, 01, 00, 00, 00, 00, 00, 00, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 00, 00, 00, 00, 00, 00, 00, 01},
+  	{ 00, 00, 00, 00, 00, 00, 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01, 00, 00, 00, 00, 00, 00},
+    { 00, 00, 00, 00, 00, 00, 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01, 00, 00, 00, 00, 00, 00},
+  	{ 00, 00, 00, 00, 00, 00, 00, 00, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 00, 00, 00, 00, 00, 00, 00, 00},
+  	{ 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01},
+  	{ 01, 01, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 01, 01, 00, 00, 01, 01},
+  	{ 01, 01, 00, 00, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 00, 00, 01, 01},
+  	{ 01, 01, 01, 01, 01, 01, 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01, 01, 01, 01, 01, 01, 01},
+    { 01, 01, 01, 01, 01, 01, 01, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 01, 01, 01, 01, 01, 01, 01},
+    { 01, 01, 01, 01, 01, 01, 01, 01, 00, 00, 00, 01, 01, 01, 01, 00, 00, 00, 01, 01, 01, 01, 01, 01, 01, 01}
+  }
+
+  mapX = 1
+  mapY = 1
+  tilesDisplayWidth = 26
+  tilesDisplayHeight = 20
+
+  zoomX = 1
+  zoomY = 1
+
+  tilesetImage = love.graphics.newImage( "img/tile_set.png" )
+  tilesetImage:setFilter("nearest", "linear")
+  tileSize = 32
+
+  tileQuads = {}
+  for y=0, 1-1 do
+    for x=0, 2-1 do
+      tileQuads[x+(y*5)] = love.graphics.newQuad(
+        x * tileSize,
+        y * tileSize,
+        tileSize,
+        tileSize,
+        tilesetImage:getWidth(),
+        tilesetImage:getHeight()
+      )
+    end
+  end
+
+  for y=0, tilesDisplayHeight-1 do
+    for x=0, tilesDisplayWidth-1 do
+      if map[y+mapY][x+mapX] == 01 then
+        tiles[x+(y*tilesDisplayWidth)] = Tile.new(x * tileSize, y * tileSize, physicsWorld)
+      end
+    end
+  end
+
+  tilesetBatch = love.graphics.newSpriteBatch(tilesetImage, tilesDisplayWidth * tilesDisplayHeight)
+  updateTilesetBatch()
+end
+
+function loadPlayer()
+  player = Player.new(
     love.graphics.getWidth()/2,
     love.graphics.getHeight()/2,
     "img/player.png", 1, 32, 32,
     physicsWorld
   )
-  floor         = Floor.new(0, love.graphics.getHeight() - 32, physicsWorld)
-
-  physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
 end
 
 function loadAudio()
@@ -214,7 +297,21 @@ function love.update(dt)
   player:update(dt)
   arrows.update(dt)
 
+  handleSpecialCollision()
+
   updateDebug()
+end
+
+function handleSpecialCollision()
+  if player.physics.body:getX() < -16 then
+    player.physics.body:setX(25*32 + 16)
+  elseif player.physics.body:getX() > 25*32 + 16 then
+    player.physics.body:setX(16)
+  elseif player.physics.body:getY() < 0  then
+    player.physics.body:setY(32*20)
+  elseif player.physics.body:getY() > 32*20  then
+    player.physics.body:setY(0)
+  end
 end
 
 function updateDebug()
@@ -264,17 +361,14 @@ function updateKeyInputs()
   if  love.keyboard.isDown('down') and
   not love.keyboard.isDown('left') and
   not love.keyboard.isDown('right') then
-    print("UP")
     player.bow:changeAngle(90)
   elseif love.keyboard.isDown('down') and
   not love.keyboard.isDown('left') and
       love.keyboard.isDown('right') then
-    print("UP")
     player.bow:changeAngle(45)
   elseif love.keyboard.isDown('down') and
       love.keyboard.isDown('left') and
   not love.keyboard.isDown('right') then
-    print("UP")
     player.bow:changeAngle(135)
   end
 end
@@ -345,6 +439,16 @@ function updateJoystickInputs()
   end
 end
 
+function updateTilesetBatch()
+  tilesetBatch:clear()
+  for y=0, tilesDisplayHeight-1 do
+    for x=0, tilesDisplayWidth-1 do
+      tilesetBatch:add(tileQuads[map[y+mapY][x+mapX]], x*tileSize, y*tileSize)
+    end
+  end
+  tilesetBatch:flush()
+end
+
 ------------
 -- COLLISION
 ------------
@@ -368,34 +472,68 @@ end
 function love.draw()
   loveframes.draw()
 
-  player:draw()
-  arrows.draw()
+  if not debug then
+    drawTiles()
+
+    player:draw()
+    arrows.draw()
+  end
 
   drawDebug()
 
   love.graphics.print(mouseString)
 end
 
+function drawTiles()
+  love.graphics.draw(tilesetBatch)
+end
+
 function drawDebug()
   if(debug == true) then
-    love.graphics.setColor(250, 116, 107)
-    love.graphics.polygon(
-      "line",
-      floor.physics.body:
-        getWorldPoints(
-          floor.physics.shape:getPoints()
-        )
-    )
 
-    love.graphics.setColor(189, 252, 196)
-    love.graphics.rectangle(
-      "line",
-      player.physics.body:
-        getX(),
-      player.physics.body:getY(),
-      32,
-      32
-    )
+    drawPlayerDebug()
+    drawTilesDebug()
+
+    love.graphics.setColor(255, 255, 255)
+  end
+end
+
+function drawPlayerDebug()
+  love.graphics.setColor(255, 0, 0, 50)
+  love.graphics.rectangle(
+    "fill",
+    player.physics.body:getX(),
+    player.physics.body:getY(),
+    32, 32
+  )
+  love.graphics.setColor(255, 0, 0)
+  love.graphics.rectangle(
+    "line",
+    player.physics.body:getX(),
+    player.physics.body:getY(),
+    32, 32
+  )
+end
+
+function drawTilesDebug()
+  love.graphics.setColor(0, 255, 0)
+  for y=0, tilesDisplayHeight-1 do
+    for x=0, tilesDisplayWidth-1 do
+      if map[y+mapY][x+mapX] == 01 then
+        love.graphics.setColor(0, 255, 0, 50)
+        love.graphics.rectangle(
+          "fill",
+          x * tileSize, y * tileSize,
+          tileSize, tileSize
+        )
+        love.graphics.setColor(0, 255, 0)
+        love.graphics.rectangle(
+          "line",
+          x * tileSize, y * tileSize,
+          tileSize, tileSize
+        )
+      end
+    end
   end
 end
 
@@ -416,6 +554,10 @@ function love.keypressed(key, unicode)
   end
   if key == "space" then
     player:shot()
+  end
+  if key == "r" then
+    if debug == true then debug = false
+    else debug = true end
   end
 end
 
@@ -581,6 +723,7 @@ Arrow.new = function(physicsWorld, bow, angle)
   self.physics.fixture:setFilterData(1, 0, 0)
   self.physics.body:isBullet()
   self.physics.body:setMass(0.1)
+  self.physics.body:setGravityScale(0.5)
 
   return self
 end
@@ -648,7 +791,7 @@ Bow.shot = function(self)
   local arrow = Arrow.new(physicsWorld, self, self.angle)
   table.insert(arrows, arrow)
 
-  local impulse = arrow.physics.body:getMass() * 600;
+  local impulse = 0.1 * 600;
   local ang = self.physics.body:getAngle()
 
   if ang == 0 then
@@ -686,11 +829,14 @@ Player.new = function(x, y, image, frameCount, width, height, physicsWorld)
   self.physics.world    = physicsWorld
   self.physics.body     = love.physics.newBody(
                             self.physics.world,
-                            x,
-                            y,
+                            x - self.sprite:getWidth()/2,
+                            y - self.sprite:getHeight()/2,
                             "dynamic"
                           )
-  self.physics.shape    = love.physics.newRectangleShape(32, 32)
+  self.physics.shape    = love.physics.newRectangleShape(
+                            self.sprite:getWidth(),
+                            self.sprite:getHeight()
+                          )
   self.physics.fixture  = love.physics.newFixture(
                             self.physics.body,
                             self.physics.shape,
@@ -779,6 +925,32 @@ Floor.new = function(x, y, physicsWorld)
 end
 
 ------------
+-- SOLID TILE
+------------
+Tile.new = function(x, y, physicsWorld)
+  local self = self or {}
+
+  self.physics          = {}
+  self.physics.world    = physicsWorld
+  self.physics.body     = love.physics.newBody(
+                            physicsWorld,
+                            x,
+                            y,
+                            "static"
+                          )
+  self.physics.shape    = love.physics.newRectangleShape(
+                            32,
+                            32
+                          )
+  self.physics.fixture  = love.physics.newFixture(
+                            self.physics.body,
+                            self.physics.shape
+                          )
+
+  return self
+end
+
+------------
 -- SPRITE
 ------------
 Sprite.new = function(player, image, frameCout, width, height)
@@ -842,4 +1014,12 @@ Sprite.drawRotation = function(self, image, angle, x, y)
     math.rad(angle), 1, 1, -self.image:getWidth()/2,
     self.image:getHeight()/2
   )
+end
+
+Sprite.getWidth = function(self)
+  return self.image:getWidth()/self.frameCout
+end
+
+Sprite.getHeight = function(self)
+  return self.image:getHeight()
 end
