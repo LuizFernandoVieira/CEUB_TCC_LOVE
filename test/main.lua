@@ -91,6 +91,7 @@ local soundEffect = nil
 ------------
 local joystricks
 local joystick
+local joystickMenuSelected = nil
 
 ------------
 -- LOAD
@@ -102,9 +103,6 @@ end
 
 ------------
 -- MAIN MENU STATE
-------------
-------------
--- INIT
 ------------
 function mainMenuState:init()
   loveConfigurations()
@@ -129,19 +127,18 @@ end
 function joystricksConfigurations()
   joysticks = love.joystick.getJoysticks()
   joystick = joysticks[1]
+  joystickMenuSelected = "play"
 end
 
 function debugConfigurations()
-  if(agr ~= nil) then
+  if agr ~= nil then
     debug = true
   end
 end
 
-------------
--- UPDATE
-------------
 function mainMenuState:update(dt)
     updateMainMenuGUI(dt)
+    updateMainMenuJoystickGUI(dt)
 end
 
 function updateMainMenuGUI(dt)
@@ -168,6 +165,35 @@ function updateSuitButtonQuit(dt)
   )
   if buttonQuit.hit then
     love.event.quit()
+  end
+end
+
+function updateMainMenuJoystickGUI(dt)
+  if joystick ~= nil then
+    if joystickMenuSelected == "play" then
+      buttonQuit.color = {0,0,0}
+    else
+      buttonQuit.color = {255,0,0}
+    end
+  end
+end
+
+function mainMenuState:gamepadpressed(joystick, button)
+  if button == "dpup" or button == "dpdown" then
+    if joystickMenuSelected == "play" then
+      joystickMenuSelected = "exit"
+    else
+      joystickMenuSelected = "play"
+    end
+  end
+
+  if button == "a" then
+    if joystickMenuSelected == "play" then
+      Gamestate.switch(playMenuState)
+      joystickMenuSelected = "singleplayer"
+    else
+      love.event.quit()
+    end
   end
 end
 
@@ -218,6 +244,28 @@ function updateSuitButtonBack(dt)
   )
   if buttonBack.hit then
     Gamestate.switch(mainMenuState)
+  end
+end
+
+function playMenuState:gamepadpressed(joystick, button)
+  if button == "dpup" or button == "dpdown" then
+    if joystickMenuSelected == "singleplayer" then
+      joystickMenuSelected = "multiplayer"
+    elseif joystickMenuSelected == "multiplayer" then
+      joystickMenuSelected = "back"
+    else
+      joystickMenuSelected = "singleplayer"
+    end
+  end
+
+  if button == "a" then
+    if joystickMenuSelected == "singleplayer" then
+      Gamestate.switch(gameState)
+    elseif joystickMenuSelected == "multiplayer" then
+      print("multiplayer")
+    else
+      Gamestate.switch(mainMenuState)
+    end
   end
 end
 
