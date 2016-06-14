@@ -9,7 +9,7 @@
 ------------
 -- LIBS
 ------------
-local loveframes  = require "loveframes"
+local suit        = require "suit"
 local Gamestate   = require "hump.gamestate"
 local Timer       = require "hump.timer"
 local Class       = require "hump.class"
@@ -61,14 +61,16 @@ setmetatable(GameActor, {
 ------------
 -- TABLES
 ------------
-local players       = {}
 local tiles         = {}
 local arrows        = {}
-------------
--- OBJECT
-------------
 local physicsWorld  = nil
 local player        = nil
+------------
+-- GAMESTATES
+------------
+local mainMenuState         = {}
+local playMenuState         = {}
+local gameState             = {}
 ------------
 -- CONSTANTS
 ------------
@@ -94,17 +96,20 @@ local joystick
 -- LOAD
 ------------
 function love.load(arg)
-  loveframesConfigurations()
-  loveConfigurations()
-  joystricksConfigurations()
-  debugConfigurations(arg)
-  loadGUI()
-  loadObjects()
-  loadAudio()
+  Gamestate.registerEvents()
+  Gamestate.switch(mainMenuState)
 end
 
-function loveframesConfigurations()
-  loveframes.SetState("gameState")
+------------
+-- MAIN MENU STATE
+------------
+------------
+-- INIT
+------------
+function mainMenuState:init()
+  loveConfigurations()
+  joystricksConfigurations()
+  debugConfigurations()
 end
 
 function loveConfigurations()
@@ -132,71 +137,103 @@ function debugConfigurations()
   end
 end
 
-function loadGUI()
-  loadButtonPlay()
-  loadButtonQuit()
-  loadButtonSinglePlayer()
-  loadButtonMultiPlayer()
-  loadButtonBack()
+------------
+-- UPDATE
+------------
+function mainMenuState:update(dt)
+    updateMainMenuGUI(dt)
 end
 
-function loadButtonPlay()
-  buttonPlay = loveframes.Create("button")
-  buttonPlay: SetSize(200,50):
-              SetText("Play"):
-              CenterX():
-              CenterY():
-              SetState("mainMenuState")
-  buttonPlay.OnClick = function()
-    loveframes.SetState("gameState")
-  end
-  buttonPlay.OnMouseEnter = function()
-  end
-  buttonPlay.OnMouseExit = function()
-  end
+function updateMainMenuGUI(dt)
+  updateSuitButtonPlay(dt)
+  updateSuitButtonQuit(dt)
 end
 
-function loadButtonQuit()
-  buttonQuit = loveframes.Create("button")
-  buttonQuit: SetSize(200, 50):
-              SetText("Quit"):
-              CenterX():
-              SetY(love.graphics.getHeight()/2 + 50):
-              SetState("mainMenuState")
-  buttonQuit.OnClick = function()
-    love.event.push('quit')
-  end
-  buttonQuit.OnMouseEnter = function()
-  end
-  buttonQuit.OnMouseExit = function()
+function updateSuitButtonPlay(dt)
+  buttonPlay = suit.Button(
+    "Play",
+    love.graphics.getWidth()/2 - 100,
+    love.graphics.getHeight()/2, 200, 50
+  )
+  if buttonPlay.hit then
+    Gamestate.switch(playMenuState)
   end
 end
 
-function loadButtonSinglePlayer()
-  buttonSinglePlayer = loveframes.Create("button")
-  buttonSinglePlayer: SetSize(200, 50):
-                      SetText("Single Player"):
-                      CenterX():
-                      CenterY():
-                      SetState("playMenuState")
+function updateSuitButtonQuit(dt)
+  buttonQuit = suit.Button(
+    "Quit",
+    love.graphics.getWidth()/2 - 100,
+    love.graphics.getHeight()/2 + 75, 200, 50
+  )
+  if buttonQuit.hit then
+    love.event.quit()
+  end
 end
 
-function loadButtonMultiPlayer()
-  buttonMultiPlayer = loveframes.Create("button")
-  buttonMultiPlayer:  SetSize(200, 50):
-                      SetText("Multi Player"):
-                      CenterX():
-                      SetY(love.graphics.getHeight()/2 + 50):
-                      SetState("playMenuState")
+function mainMenuState:draw()
+  suit.draw()
 end
 
-function loadButtonBack()
-  buttonBack = loveframes.Create("button")
-  buttonBack: SetSize(200, 50):
-              SetText("Back"):
-              CenterX():
-              SetY(love.graphics.getHeight()/2 + 125):
-              SetState("playMenuState")
+------------
+-- PLAY MENU STATE
+------------
+------------
+-- UPDATE
+------------
+function playMenuState:update()
+  updatePlayMenuGUI(dt)
+end
+
+function updatePlayMenuGUI(dt)
+  updateSuitButtonSinglePlayer(dt)
+  updateSuitButtonMultiPlayer(dt)
+  updateSuitButtonBack(dt)
+end
+
+function updateSuitButtonSinglePlayer(dt)
+  buttonSinglePlayer = suit.Button(
+    "Singleplayer",
+    love.graphics.getWidth()/2 - 100,
+    love.graphics.getHeight()/2, 200, 50
+  )
+  if buttonSinglePlayer.hit then
+    Gamestate.switch(gameState)
+  end
+end
+
+function updateSuitButtonMultiPlayer(dt)
+  buttonMultiPlayer = suit.Button(
+    "Multiplayer",
+    love.graphics.getWidth()/2 - 100,
+    love.graphics.getHeight()/2 + 75, 200, 50
+  )
+end
+
+function updateSuitButtonBack(dt)
+  buttonBack = suit.Button(
+    "Back",
+    love.graphics.getWidth()/2 - 100,
+    love.graphics.getHeight()/2 + 145, 200, 50
+  )
+  if buttonBack.hit then
+    Gamestate.switch(mainMenuState)
+  end
+end
+
+function playMenuState:draw()
+  suit.draw()
+end
+
+------------
+-- GAME STATE
+------------
+------------
+-- INIT
+------------
+function gameState:init()
+  loadObjects()
+  loadAudio()
 end
 
 function loadObjects()
@@ -289,8 +326,7 @@ end
 ------------
 -- UPDATE
 ------------
-function love.update(dt)
-  loveframes.update(dt)
+function gameState:update(dt)
   physicsWorld:update(dt)
   updateInputs()
 
@@ -450,7 +486,7 @@ function updateTilesetBatch()
 end
 
 ------------
--- COLLISION
+-- GAME STATE COLLISION
 ------------
 
 function beginContact(a, b, coll)
@@ -467,10 +503,9 @@ function postSolve(a, b, coll, normalimpulse, tangentimpulse)
 end
 
 ------------
--- DRAW
+-- GAME STATE DRAW
 ------------
-function love.draw()
-  loveframes.draw()
+function gameState:draw()
 
   if not debug then
     drawTiles()
@@ -480,8 +515,6 @@ function love.draw()
   end
 
   drawDebug()
-
-  love.graphics.print(mouseString)
 end
 
 function drawTiles()
@@ -495,6 +528,7 @@ function drawDebug()
     drawTilesDebug()
 
     love.graphics.setColor(255, 255, 255)
+    love.graphics.print(mouseString)
   end
 end
 
@@ -538,16 +572,15 @@ function drawTilesDebug()
 end
 
 ------------
--- QUIT
+-- GAME STATE QUIT
 ------------
-function love.quit()
+function gameState:quit()
 end
 
 ------------
--- KEYS
+-- GAME STATE KEYS
 ------------
-function love.keypressed(key, unicode)
-  loveframes.keypressed(key, unicode)
+function gameState:keypressed(key, unicode)
 
   if key == "w" then
     player:jump()
@@ -561,39 +594,13 @@ function love.keypressed(key, unicode)
   end
 end
 
-function love.keyreleased(key)
-  loveframes.keyreleased(key)
+function gameState.keyreleased(key)
 end
 
 ------------
--- MOUSE
+-- GAME STATE GAMEPAD
 ------------
-function love.mousepressed(x, y, button)
-  loveframes.mousepressed(x, y, button)
-end
-
-function love.mousereleased(x, y, button)
-   loveframes.mousereleased(x, y, button)
-end
-
-------------
--- LOVEFRAMES MOUSE
-------------
-function loveframes.mousepressed(x, y, button)
-  print("loveframes.mousepressed")
-end
-
-function loveframes.mousereleased(x, y, button)
-  print("loveframes.mousereleased")
-end
-
-function loveframes.textinput(text)
-end
-
-------------
--- GAMEPAD
-------------
-function love.gamepadpressed(joystick, button)
+function gameState:gamepadpressed(joystick, button)
   if button == "a" then
   end
   if button == "b" then
@@ -608,26 +615,26 @@ function love.gamepadpressed(joystick, button)
   end
 end
 
-function love.gamepadreleased(joystick, button)
+function gameState:gamepadreleased(joystick, button)
 end
 
 ------------
--- JOYSTICKS
+-- GAME STATE JOYSTICKS
 ------------
-function love.joystickreleased(joystick, button)
+function gameState.joystickreleased(joystick, button)
 end
 
-function love.joystickreleased(key)
+function gameState.joystickreleased(key)
 end
 
-function love.joystickadded(joystick)
+function gameState.joystickadded(joystick)
 end
 
-function love.joystickremoved(joystick)
+function gameState.joystickremoved(joystick)
 end
 
 ------------
--- LISTS
+-- GAME STATE LISTS
 ------------
 function arrows.update(dt)
   for i, v in ipairs(arrows) do
@@ -640,6 +647,11 @@ function arrows.draw()
     v:draw()
   end
 end
+
+------------
+-- CLASSES
+------------
+
 ------------
 -- GAME OBJECT
 ------------
