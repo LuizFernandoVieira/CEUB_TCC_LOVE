@@ -28,6 +28,7 @@ local buttonBack
 ------------
 local GameObject  = {}
 local GameActor   = {}
+local Enemy       = {}
 local Player      = {}
 local Bow         = {}
 local Arrow       = {}
@@ -36,6 +37,7 @@ local Tile        = {}
 local Sprite      = {}
 GameObject.__index  = GameObject
 GameActor.__index   = GameActor
+Enemy.__index       = Enemy
 Player.__index      = Player
 Bow.__index         = Bow
 Arrow.__index       = Arrow
@@ -58,13 +60,23 @@ setmetatable(GameActor, {
     return self
   end,
 })
+setmetatable(Enemy, {
+  __index = GameActor,
+  __call = function (cls, ...)
+    local self = setmetatable({}, cls)
+    self:_init(...)
+    return self
+  end,
+})
 ------------
 -- TABLES
 ------------
 local tiles         = {}
 local arrows        = {}
+local enemies       = {}
 local physicsWorld  = nil
 local player        = nil
+local enemy         = nil
 ------------
 -- GAMESTATES
 ------------
@@ -204,9 +216,6 @@ end
 ------------
 -- PLAY MENU STATE
 ------------
-------------
--- UPDATE
-------------
 function playMenuState:update()
   updatePlayMenuGUI(dt)
 end
@@ -288,6 +297,7 @@ function loadObjects()
   loadPhysicsWorld()
   loadTileMap()
   loadPlayer()
+  loadEnemies()
   physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
 end
 
@@ -366,19 +376,31 @@ function loadPlayer()
   )
 end
 
+function loadEnemies()
+  table.insert(enemies, Enemy(physicsWorld, 100, 200))
+  table.insert(enemies, Enemy(physicsWorld, 200, 200))
+  table.insert(enemies, Enemy(physicsWorld, 300, 200))
+
+  for i,v in ipairs(enemies) do
+    print(v.physics.body:getX())
+  end
+end
+
 function loadAudio()
   music = love.audio.newSource("audio/music.mp3") -- music:play()
   soundEffect = love.audio.newSource("audio/audio_coin.ogg", "static")
 end
 
-------------
--- UPDATE
-------------
 function gameState:update(dt)
   physicsWorld:update(dt)
   updateInputs()
 
   player:update(dt)
+
+  for i,v in ipairs(enemies) do
+    v:update(dt)
+  end
+
   arrows.update(dt)
 
   handleSpecialCollision()
@@ -395,6 +417,18 @@ function handleSpecialCollision()
     player.physics.body:setY(32*20)
   elseif player.physics.body:getY() > 32*20  then
     player.physics.body:setY(0)
+  end
+
+  for i,v in ipairs(enemies) do
+    if v.physics.body:getX() < -16 then
+      v.physics.body:setX(25*32 + 16)
+    elseif v.physics.body:getX() > 25*32 + 16 then
+      v.physics.body:setX(16)
+    elseif v.physics.body:getY() < 0  then
+      v.physics.body:setY(32*20)
+    elseif v.physics.body:getY() > 32*20  then
+      v.physics.body:setY(0)
+    end
   end
 end
 
@@ -485,10 +519,6 @@ function updateJoystickInputs()
     player.desiredVelocity = 0
   end
 
-  if joystick:getGamepadAxis("lefty") < -0.7 then
-    player:jump()
-  end
-
   if joystick:getGamepadAxis("righty") < -0.7 then
     player.bow:changeAngle(270)
   end
@@ -533,12 +563,12 @@ function updateTilesetBatch()
   tilesetBatch:flush()
 end
 
-------------
--- GAME STATE COLLISION
-------------
-
 function beginContact(a, b, coll)
   player.grounded = true
+
+  for i,v in ipairs(enemies) do
+    v.grounded = true
+  end
 end
 
 function endContact(a, b, coll)
@@ -550,9 +580,6 @@ end
 function postSolve(a, b, coll, normalimpulse, tangentimpulse)
 end
 
-------------
--- GAME STATE DRAW
-------------
 function gameState:draw()
 
   if not debug then
@@ -573,6 +600,7 @@ function drawDebug()
   if(debug == true) then
 
     drawPlayerDebug()
+    drawEnemyDebug()
     drawTilesDebug()
 
     love.graphics.setColor(255, 255, 255)
@@ -581,20 +609,39 @@ function drawDebug()
 end
 
 function drawPlayerDebug()
-  love.graphics.setColor(255, 0, 0, 50)
+  love.graphics.setColor(0, 0, 255, 50)
   love.graphics.rectangle(
     "fill",
     player.physics.body:getX(),
     player.physics.body:getY(),
     32, 32
   )
-  love.graphics.setColor(255, 0, 0)
+  love.graphics.setColor(0, 0, 255)
   love.graphics.rectangle(
     "line",
     player.physics.body:getX(),
     player.physics.body:getY(),
     32, 32
   )
+end
+
+function drawEnemyDebug()
+  for i,v in ipairs(enemies) do
+    love.graphics.setColor(255, 0, 0, 50)
+    love.graphics.rectangle(
+      "fill",
+      v.physics.body:getX(),
+      v.physics.body:getY(),
+      32, 32
+    )
+    love.graphics.setColor(255, 0, 0)
+    love.graphics.rectangle(
+      "line",
+      v.physics.body:getX(),
+      v.physics.body:getY(),
+      32, 32
+    )
+  end
 end
 
 function drawTilesDebug()
@@ -619,9 +666,6 @@ function drawTilesDebug()
   end
 end
 
-------------
--- GAME STATE QUIT
-------------
 function gameState:quit()
 end
 
@@ -650,6 +694,7 @@ end
 ------------
 function gameState:gamepadpressed(joystick, button)
   if button == "a" then
+    player:jump()
   end
   if button == "b" then
   end
@@ -732,11 +777,11 @@ function GameActor:_init(physicsWorld, x, y)
 end
 
 function GameActor:moveLeft()
-  self.physics.body:applyForce(-300, 0)
+  self.desiredVelocity = -100
 end
 
 function GameActor:moveRight()
-  self.physics.body:applyForce(300, 0)
+  self.desiredVelocity = 100
 end
 
 function GameActor:get_Body()
@@ -749,6 +794,46 @@ end
 
 function GameActor:get_Fixture()
   return self.physics.fixture
+end
+
+------------
+-- ENEMY
+------------
+function Enemy:_init(physicsWorld, x, y)
+  GameActor._init(self, physicsWorld, x, y)
+
+  self.grounded         = false
+  self.desiredVelocity  = 0
+  self.stuckCounter     = 0
+end
+
+function Enemy:update(dt)
+  self.stuckCounter = self.stuckCounter + dt
+
+  if self.stuckCounter > (dt*60*3) then
+    self:jump()
+    self.stuckCounter = 0
+  end
+
+  if self.physics.body:getX() > player.physics.body:getX() + 32 then
+    self:moveLeft()
+  elseif self.physics.body:getX() < player.physics.body:getX() - 32 then
+    self:moveRight()
+  else
+  end
+
+  -- i = m * dv
+  local velChange = self.desiredVelocity - self.physics.body:getLinearVelocity();
+  local impulse = self.physics.body:getMass() * velChange;
+  self.physics.body:applyLinearImpulse(impulse, 0)
+end
+
+function Enemy:jump()
+  if self.grounded == true then
+    local impulse = self.physics.body:getMass() * 500;
+    self.physics.body:applyLinearImpulse(0, -impulse)
+    self.grounded = false
+  end
 end
 
 ------------
