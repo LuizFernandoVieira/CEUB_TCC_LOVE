@@ -714,26 +714,19 @@ end
 function drawArrowsDebug()
   love.graphics.setColor(255, 0, 255)
   for i, v in ipairs(arrows) do
-    local bx  = v.physics.body:getX()
-    local by  = v.physics.body:getY()
-    local x1, y1, x2, y2, x3, y3, x4, y4 = v.physics.shape:getPoints()
-
     love.graphics.setColor(255, 0, 255, 50)
-    love.graphics.polygon(
+    love.graphics.circle(
       "fill",
-      bx - x1, by - y1,
-      bx - x2, by - y2,
-      bx - x3, by - y3,
-      bx - x4, by - y4
+      v.physics.body:getX(),
+      v.physics.body:getY(),
+      16
     )
-
     love.graphics.setColor(255, 0, 255)
-      love.graphics.polygon(
+      love.graphics.circle(
         "line",
-        bx - x1, by - y1,
-        bx - x2, by - y2,
-        bx - x3, by - y3,
-        bx - x4, by - y4
+        v.physics.body:getX(),
+        v.physics.body:getY(),
+        16
       )
   end
 end
@@ -1037,17 +1030,6 @@ end
 function Arrow.new(physicsWorld, bow, angle)
   local self = setmetatable({}, Arrow)
 
-  -- Rotation Matrix
-  -- x' = x\cos(ang) -y\sin(ang)
-  -- y' = x\sin(ang) +y\cos(ang)
-  local ang = math.rad(angle)
-
-  print("oi")
-  print(angle)
-  print(math.sin(ang))
-  print(math.cos(ang))
-  print("oi")
-
   self.bow              = bow
   self.sprite           = Sprite.new(self, "img/arrow.png", 1, 32, 32)
   self.physics          = {}
@@ -1058,32 +1040,7 @@ function Arrow.new(physicsWorld, bow, angle)
                             self.bow.physics.body:getY() + 16,
                             "dynamic"
                           )
-
-  if math.sin(ang) == 0 and math.cos(ang) ~= 0 then
-    print("b")
-    self.physics.shape    = love.physics.newPolygonShape(
-                              0 , 5,
-                              12, 0,
-                              32, 5,
-                              12, 12
-                            )
-  elseif math.sin(ang) ~= 0 and math.cos(ang) == 0 then
-    print("c")
-    self.physics.shape    = love.physics.newPolygonShape(
-                              0  - 5/math.sin(ang) , 0/math.sin(ang)  + 5,
-                              12 - 0/math.sin(ang) , 12/math.sin(ang) + 0,
-                              32 - 5/math.sin(ang) , 32/math.sin(ang) + 5,
-                              12 - 12/math.sin(ang), 12/math.sin(ang) + 12
-                            )
-  else
-    self.physics.shape    = love.physics.newPolygonShape(
-                              0 /math.cos(ang) - 5/math.sin(ang) , 0/math.sin(ang)  + 5/math.cos(ang),
-                              12/math.cos(ang) - 0/math.sin(ang) , 12/math.sin(ang) + 0/math.cos(ang),
-                              32/math.cos(ang) - 5/math.sin(ang) , 32/math.sin(ang) + 5/math.cos(ang),
-                              12/math.cos(ang) - 12/math.sin(ang), 12/math.sin(ang) + 12/math.cos(ang)
-                            )
-  end
-
+  self.physics.shape    = love.physics.newCircleShape(16)
   self.physics.fixture  = love.physics.newFixture(
                             self.physics.body,
                             self.physics.shape,
