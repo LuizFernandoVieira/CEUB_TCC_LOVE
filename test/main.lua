@@ -571,7 +571,6 @@ function updateTilesetBatch()
 end
 
 function beginContact(a, b, coll)
-
   if  a:getBody():getUserData().type == "Tile" and
       b:getBody():getUserData().type == "Player" then
     player[1].grounded = true
@@ -583,16 +582,6 @@ function beginContact(a, b, coll)
       enemies[2].grounded = true
       enemies[3].grounded = true
   end
-
-  -- if b player
-  --   if a enemy
-  -- elseif b enemy
-  --   if a player
-  -- else
-  -- end
-  -- for i,v in ipairs(enemies) do
-  --   v.grounded = true
-  -- end
 end
 
 function endContact(a, b, coll)
@@ -602,6 +591,10 @@ function preSolve(a, b, coll)
 end
 
 function postSolve(a, b, coll, normalimpulse, tangentimpulse)
+  if  a:getBody():getUserData().type == "Arrow" and
+      b:getBody():getUserData().type == "Tile" then
+    love.physics.newDistanceJoint( a:getBody(), b:getBody(), a:getBody():getX(), a:getBody():getY(), b:getBody():getX(), b:getBody():getY(), false )
+  end
 end
 
 function gameState:draw()
