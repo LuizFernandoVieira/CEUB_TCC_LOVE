@@ -12,7 +12,6 @@
 local suit        = require "suit"
 local Gamestate   = require "hump.gamestate"
 local Timer       = require "hump.timer"
-local Class       = require "hump.class"
 local Camera      = require "hump.camera"
 ------------
 -- GUI
@@ -114,8 +113,8 @@ local joystickMenuSelected = nil
 ------------
 -- HELPER
 ------------
-local createJoint = false
-local arrowsId    = 1
+local arrowsId      = 1
+local isMultiplayer = false
 
 ------------
 -- LOAD
@@ -223,6 +222,148 @@ end
 
 function mainMenuState:draw()
   suit.draw()
+  drawTitleDebug()
+end
+
+function drawTitleDebug()
+  drawLDebug()
+  drawUDebug()
+  drawADebug()
+end
+
+function drawLDebug()
+  love.graphics.setColor(255, 0, 0, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 - 100 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(255, 0, 0)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 - 100 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(255, 0, 0, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 - 100 + 32 - 48,
+    love.graphics.getHeight()/2 - 200 + 96,
+    32, 32
+  )
+  love.graphics.setColor(255, 0, 0)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 - 100 + 32 - 48,
+    love.graphics.getHeight()/2 - 200 + 96,
+    32, 32
+  )
+end
+
+function drawUDebug()
+  love.graphics.setColor(0, 255, 0, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 - 4 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(0, 255, 0)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 - 4 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(0, 255, 0, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 + 28 - 48,
+    love.graphics.getHeight()/2 - 200 + 96,
+    32, 32
+  )
+  love.graphics.setColor(0, 255, 0)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 + 28 - 48,
+    love.graphics.getHeight()/2 - 200 + 96,
+    32, 32
+  )
+  love.graphics.setColor(0, 255, 0, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 + 60 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(0, 255, 0)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 + 60 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+end
+
+function drawADebug()
+  love.graphics.setColor(0, 200, 255, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 + 124 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(0, 200, 255)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 + 124 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(0, 200, 255, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 + 124 + 32 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 32
+  )
+  love.graphics.setColor(0, 200, 255)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 + 124 + 32 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 32
+  )
+  love.graphics.setColor(0, 200, 255, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 + 124 + 32 - 48,
+    love.graphics.getHeight()/2 - 200 + 64,
+    32, 32
+  )
+  love.graphics.setColor(0, 200, 255)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 + 124 + 32 - 48,
+    love.graphics.getHeight()/2 - 200 + 64,
+    32, 32
+  )
+  love.graphics.setColor(0, 200, 255, 50)
+  love.graphics.rectangle(
+    "fill",
+    love.graphics.getWidth()/2 + 124 + 32 + 32 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
+  love.graphics.setColor(0, 200, 255)
+  love.graphics.rectangle(
+    "line",
+    love.graphics.getWidth()/2 + 124 + 32 + 32 - 48,
+    love.graphics.getHeight()/2 - 200,
+    32, 128
+  )
 end
 
 ------------
@@ -255,6 +396,10 @@ function updateSuitButtonMultiPlayer(dt)
     love.graphics.getWidth()/2 - 100,
     love.graphics.getHeight()/2 + 75, 200, 50
   )
+  if buttonMultiPlayer.hit then
+    isMultiplayer = true
+    Gamestate.switch(gameState)
+  end
 end
 
 function updateSuitButtonBack(dt)
@@ -292,13 +437,11 @@ end
 
 function playMenuState:draw()
   suit.draw()
+  drawTitleDebug()
 end
 
 ------------
 -- GAME STATE
-------------
-------------
--- INIT
 ------------
 function gameState:init()
   loadObjects()
@@ -308,7 +451,7 @@ end
 function loadObjects()
   loadPhysicsWorld()
   loadTileMap()
-  loadPlayer()
+  loadPlayers()
   loadEnemies()
   physicsWorld:setCallbacks(beginContact, endContact, preSolve, postSolve)
 end
@@ -379,19 +522,33 @@ function loadTileMap()
   updateTilesetBatch()
 end
 
-function loadPlayer()
+function loadPlayers()
   table.insert(player, Player(
     physicsWorld,
     love.graphics.getWidth()/2,
     love.graphics.getHeight()/2,
     "img/player.png", 1, 32, 32
   ))
+
+  if isMultiplayer then
+    table.insert(player, Player(
+      physicsWorld,
+      love.graphics.getWidth()/2,
+      love.graphics.getHeight()/2 + 200,
+      "img/player.png", 1, 32, 32
+    ))
+  end
 end
 
 function loadEnemies()
   table.insert(enemies, Enemy(physicsWorld, 100, 200))
   table.insert(enemies, Enemy(physicsWorld, 200, 200))
   table.insert(enemies, Enemy(physicsWorld, 300, 200))
+  if isMultiplayer then
+    table.insert(enemies, Enemy(physicsWorld, 200, 400))
+    table.insert(enemies, Enemy(physicsWorld, 400, 400))
+    table.insert(enemies, Enemy(physicsWorld, 600, 400))
+  end
 end
 
 function loadAudio()
@@ -418,12 +575,6 @@ function gameState:update(dt)
   handleSpecialCollision()
 
   updateDebug()
-  if createJoint then
-    updateCreateJoint()
-  end
-end
-
-function updateCreateJoint()
 end
 
 function handleSpecialCollision()
@@ -553,44 +704,46 @@ end
 function updateJoystickInputs()
   if not joystick then return end
 
-  if  joystick:isGamepadDown("dpleft") or
-      joystick:getGamepadAxis("leftx") < -0.2 then
-    player:moveLeft()
-  elseif  joystick:isGamepadDown("dpright") or
-          joystick:getGamepadAxis("leftx") > 0.2 then
-    player:moveRight()
-  else
-    player.desiredVelocity = 0
-  end
+  if isMultiplayer then
+    if  joystick:isGamepadDown("dpleft") or
+        joystick:getGamepadAxis("leftx") < -0.2 then
+      player[2]:moveLeft()
+    elseif  joystick:isGamepadDown("dpright") or
+            joystick:getGamepadAxis("leftx") > 0.2 then
+      player[2]:moveRight()
+    else
+      player[2].desiredVelocity = 0
+    end
 
-  if joystick:getGamepadAxis("righty") < -0.7 then
-    player.bow:changeAngle(270)
-  end
-  if joystick:getGamepadAxis("rightx") > 0.7 then
-    player.bow:changeAngle(0)
-  end
-  if joystick:getGamepadAxis("righty") > 0.7 then
-    player.bow:changeAngle(90)
-  end
-  if joystick:getGamepadAxis("rightx") < -0.7 then
-    player.bow:changeAngle(180)
-  end
+    if joystick:getGamepadAxis("righty") < -0.7 then
+      player[2].bow:changeAngle(270)
+    end
+    if joystick:getGamepadAxis("rightx") > 0.7 then
+      player[2].bow:changeAngle(0)
+    end
+    if joystick:getGamepadAxis("righty") > 0.7 then
+      player[2].bow:changeAngle(90)
+    end
+    if joystick:getGamepadAxis("rightx") < -0.7 then
+      player[2].bow:changeAngle(180)
+    end
 
-  if  joystick:getGamepadAxis("righty") < -0.5 and
-      joystick:getGamepadAxis("rightx") >  0.5 then
-    player.bow:changeAngle(315)
-  end
-  if  joystick:getGamepadAxis("righty") >  0.5 and
-      joystick:getGamepadAxis("rightx") >  0.5 then
-    player.bow:changeAngle(45)
-  end
-  if  joystick:getGamepadAxis("righty") >  0.5 and
-      joystick:getGamepadAxis("rightx") <  -0.5 then
-    player.bow:changeAngle(135)
-  end
-  if  joystick:getGamepadAxis("righty") < -0.5 and
-      joystick:getGamepadAxis("rightx") < -0.5 then
-    player.bow:changeAngle(225)
+    if  joystick:getGamepadAxis("righty") < -0.5 and
+        joystick:getGamepadAxis("rightx") >  0.5 then
+      player[2].bow:changeAngle(315)
+    end
+    if  joystick:getGamepadAxis("righty") >  0.5 and
+        joystick:getGamepadAxis("rightx") >  0.5 then
+      player[2].bow:changeAngle(45)
+    end
+    if  joystick:getGamepadAxis("righty") >  0.5 and
+        joystick:getGamepadAxis("rightx") <  -0.5 then
+      player[2].bow:changeAngle(135)
+    end
+    if  joystick:getGamepadAxis("righty") < -0.5 and
+        joystick:getGamepadAxis("rightx") < -0.5 then
+      player[2].bow:changeAngle(225)
+    end
   end
 
   if joystick:isGamepadDown("dpdown") then
@@ -611,6 +764,9 @@ function beginContact(a, b, coll)
   if  a:getBody():getUserData().type == "Tile" and
       b:getBody():getUserData().type == "Player" then
     player[1].grounded = true
+    if isMultiplayer then
+      player[2].grounded = true
+    end
   end
 
   if a:getBody():getUserData().type == "Tile" and
@@ -670,7 +826,7 @@ end
 function drawDebug()
   if(debug == true) then
 
-    drawPlayerDebug()
+    drawPlayersDebug()
     drawEnemyDebug()
     drawTilesDebug()
     drawArrowsDebug()
@@ -681,7 +837,7 @@ function drawDebug()
   end
 end
 
-function drawPlayerDebug()
+function drawPlayersDebug()
   for i,v in ipairs(player) do
     love.graphics.setColor(0, 200, 255, 50)
     love.graphics.rectangle(
@@ -804,6 +960,16 @@ function drawArrowsQuantityDebug()
         75 + i * 25, 40, 15, 15
       )
   end
+
+  if isMultiplayer then
+    for i=1, player[2].arrowsLeft, 1 do
+      love.graphics.setColor(255, 255, 0)
+        love.graphics.rectangle(
+          "line",
+          love.graphics.getWidth() - 75 - i * 25, 40, 15, 15
+        )
+    end
+  end
 end
 
 function gameState:quit()
@@ -833,18 +999,20 @@ end
 -- GAME STATE GAMEPAD
 ------------
 function gameState:gamepadpressed(joystick, button)
-  if button == "a" then
-    player:jump()
-  end
-  if button == "b" then
-  end
-  if button == "x" then
-    player:shot()
-  end
-  if button == "y" then
-  end
-  if button == "dpup" then
-    player:jump()
+  if isMultiplayer then
+    if button == "a" then
+      player[2]:jump()
+    end
+    if button == "b" then
+    end
+    if button == "x" then
+      player[2]:shot()
+    end
+    if button == "y" then
+    end
+    if button == "dpup" then
+      player[2]:jump()
+    end
   end
 end
 
@@ -991,7 +1159,6 @@ function Enemy:update(dt)
     self:moveLeft()
   elseif self.physics.body:getX() < player[1].physics.body:getX() - 32 then
     self:moveRight()
-  else
   end
 
   -- i = m * dv
@@ -1339,50 +1506,3 @@ end
 Sprite.getHeight = function(self)
   return self.image:getHeight()
 end
-
-
-    -- v.physics.body:getX() - (0), v.physics.body:getY() - (5),
-    -- v.physics.body:getX() - (12), v.physics.body:getY() - (0),
-    -- v.physics.body:getX() - (32), v.physics.body:getY() - (5),
-    -- v.physics.body:getX() - (12), v.physics.body:getY() - (12)
-
-    -- if player[1].facingRight then
-    --   love.graphics.setColor(255, 0, 255, 50)
-    --   love.graphics.polygon(
-    --     "fill",
-    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (12), v.physics.body:getY() - (0),
-    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (12), v.physics.body:getY() - (12)
-    --   )
-    --   love.graphics.setColor(255, 0, 255)
-    --   love.graphics.polygon(
-    --     "line",
-    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (12), v.physics.body:getY() - (0),
-    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (12), v.physics.body:getY() - (12)
-    --   )
-    -- else
-    --   love.graphics.setColor(255, 0, 255, 50)
-    --   love.graphics.polygon(
-    --     "fill",
-    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (20), v.physics.body:getY() - (0),
-    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (20), v.physics.body:getY() - (12)
-    --   )
-    --   love.graphics.setColor(255, 0, 255)
-    --   love.graphics.polygon(
-    --     "line",
-    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (20), v.physics.body:getY() - (0),
-    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
-    --     v.physics.body:getX() - (20), v.physics.body:getY() - (12)
-    --   )
-    -- end
-
-
-
-
--- love.physics.newDistanceJoint( a:getBody(), b:getBody(), a:getBody():getX(), a:getBody():getY(), b:getBody():getX(), b:getBody():getY(), false )
