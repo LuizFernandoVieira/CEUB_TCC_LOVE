@@ -32,7 +32,6 @@ local Enemy       = {}
 local Player      = {}
 local Bow         = {}
 local Arrow       = {}
-local Floor       = {}
 local Tile        = {}
 local Sprite      = {}
 GameObject.__index  = GameObject
@@ -68,6 +67,14 @@ setmetatable(Enemy, {
     return self
   end,
 })
+setmetatable(Player, {
+  __index = GameActor,
+  __call = function (cls, ...)
+    local self = setmetatable({}, cls)
+    self:_init(...)
+    return self
+  end,
+})
 ------------
 -- TABLES
 ------------
@@ -75,7 +82,7 @@ local tiles         = {}
 local arrows        = {}
 local enemies       = {}
 local physicsWorld  = nil
-local player        = nil
+local player        = {}
 local enemy         = nil
 ------------
 -- GAMESTATES
@@ -368,22 +375,18 @@ function loadTileMap()
 end
 
 function loadPlayer()
-  player = Player.new(
+  table.insert(player, Player(
+    physicsWorld,
     love.graphics.getWidth()/2,
     love.graphics.getHeight()/2,
-    "img/player.png", 1, 32, 32,
-    physicsWorld
-  )
+    "img/player.png", 1, 32, 32
+  ))
 end
 
 function loadEnemies()
   table.insert(enemies, Enemy(physicsWorld, 100, 200))
   table.insert(enemies, Enemy(physicsWorld, 200, 200))
   table.insert(enemies, Enemy(physicsWorld, 300, 200))
-
-  for i,v in ipairs(enemies) do
-    print(v.physics.body:getX())
-  end
 end
 
 function loadAudio()
@@ -395,7 +398,9 @@ function gameState:update(dt)
   physicsWorld:update(dt)
   updateInputs()
 
-  player:update(dt)
+  for i,v in ipairs(player) do
+    v:update(dt)
+  end
 
   for i,v in ipairs(enemies) do
     v:update(dt)
@@ -409,14 +414,16 @@ function gameState:update(dt)
 end
 
 function handleSpecialCollision()
-  if player.physics.body:getX() < -16 then
-    player.physics.body:setX(25*32 + 16)
-  elseif player.physics.body:getX() > 25*32 + 16 then
-    player.physics.body:setX(16)
-  elseif player.physics.body:getY() < 0  then
-    player.physics.body:setY(32*20)
-  elseif player.physics.body:getY() > 32*20  then
-    player.physics.body:setY(0)
+  for i,v in ipairs(player) do
+    if v.physics.body:getX() < -16 then
+      v.physics.body:setX(25*32 + 16)
+    elseif v.physics.body:getX() > 25*32 + 16 then
+      v.physics.body:setX(16)
+    elseif v.physics.body:getY() < 0  then
+      v.physics.body:setY(32*20)
+    elseif v.physics.body:getY() > 32*20  then
+      v.physics.body:setY(0)
+    end
   end
 
   for i,v in ipairs(enemies) do
@@ -445,49 +452,49 @@ end
 
 function updateKeyInputs()
   if love.keyboard.isDown('a') then
-    player:moveLeft()
+    player[1]:moveLeft()
   elseif love.keyboard.isDown('d') then
-    player:moveRight()
+    player[1]:moveRight()
   else
-    player.desiredVelocity = 0
+    player[1].desiredVelocity = 0
   end
 
   if love.keyboard.isDown('s') then
   end
 
   if love.keyboard.isDown('left') then
-    player.bow:changeAngle(180)
+    player[1].bow:changeAngle(180)
   end
   if love.keyboard.isDown('right') then
-    player.bow:changeAngle(0)
+    player[1].bow:changeAngle(0)
   end
 
   if  love.keyboard.isDown('up') and
   not love.keyboard.isDown('left') and
   not love.keyboard.isDown('right') then
-    player.bow:changeAngle(270)
+    player[1].bow:changeAngle(270)
   elseif love.keyboard.isDown('up') and
   not love.keyboard.isDown('left') and
       love.keyboard.isDown('right') then
-    player.bow:changeAngle(315)
+    player[1].bow:changeAngle(315)
   elseif love.keyboard.isDown('up') and
       love.keyboard.isDown('left') and
   not love.keyboard.isDown('right') then
-    player.bow:changeAngle(225)
+    player[1].bow:changeAngle(225)
   end
 
   if  love.keyboard.isDown('down') and
   not love.keyboard.isDown('left') and
   not love.keyboard.isDown('right') then
-    player.bow:changeAngle(90)
+    player[1].bow:changeAngle(90)
   elseif love.keyboard.isDown('down') and
   not love.keyboard.isDown('left') and
       love.keyboard.isDown('right') then
-    player.bow:changeAngle(45)
+    player[1].bow:changeAngle(45)
   elseif love.keyboard.isDown('down') and
       love.keyboard.isDown('left') and
   not love.keyboard.isDown('right') then
-    player.bow:changeAngle(135)
+    player[1].bow:changeAngle(135)
   end
 end
 
@@ -564,11 +571,28 @@ function updateTilesetBatch()
 end
 
 function beginContact(a, b, coll)
-  player.grounded = true
 
-  for i,v in ipairs(enemies) do
-    v.grounded = true
+  if  a:getBody():getUserData().type == "Tile" and
+      b:getBody():getUserData().type == "Player" then
+    player[1].grounded = true
   end
+
+  if a:getBody():getUserData().type == "Tile" and
+      b:getBody():getUserData().type == "Enemy" then
+      enemies[1].grounded = true
+      enemies[2].grounded = true
+      enemies[3].grounded = true
+  end
+
+  -- if b player
+  --   if a enemy
+  -- elseif b enemy
+  --   if a player
+  -- else
+  -- end
+  -- for i,v in ipairs(enemies) do
+  --   v.grounded = true
+  -- end
 end
 
 function endContact(a, b, coll)
@@ -585,7 +609,9 @@ function gameState:draw()
   if not debug then
     drawTiles()
 
-    player:draw()
+  for i,v in ipairs(player) do
+      v:draw()
+    end
     arrows.draw()
   end
 
@@ -600,8 +626,10 @@ function drawDebug()
   if(debug == true) then
 
     drawPlayerDebug()
+    -- drawBowDebug()
     drawEnemyDebug()
     drawTilesDebug()
+    drawArrowsDebug()
 
     love.graphics.setColor(255, 255, 255)
     love.graphics.print(mouseString)
@@ -609,20 +637,37 @@ function drawDebug()
 end
 
 function drawPlayerDebug()
-  love.graphics.setColor(0, 0, 255, 50)
-  love.graphics.rectangle(
-    "fill",
-    player.physics.body:getX(),
-    player.physics.body:getY(),
-    32, 32
-  )
-  love.graphics.setColor(0, 0, 255)
-  love.graphics.rectangle(
-    "line",
-    player.physics.body:getX(),
-    player.physics.body:getY(),
-    32, 32
-  )
+  for i,v in ipairs(player) do
+    love.graphics.setColor(0, 200, 255, 50)
+    love.graphics.rectangle(
+      "fill",
+      v.physics.body:getX(),
+      v.physics.body:getY(),
+      32, 32
+    )
+    love.graphics.setColor(0, 200, 255)
+    love.graphics.rectangle(
+      "line",
+      v.physics.body:getX(),
+      v.physics.body:getY(),
+      32, 32
+    )
+  end
+end
+
+function drawBowDebug()
+  for i,v in ipairs(player) do
+    love.graphics.setColor(255, 255, 0, 50)
+    love.graphics.polygon(
+      "fill",
+      v.physics.body:getX() + 0,
+      v.physics.body:getY() - 16,
+      v.physics.body:getX() + 48,
+      v.physics.body:getY() + 16,
+      v.physics.body:getX() + 0,
+      v.physics.body:getY() + 48
+    )
+  end
 end
 
 function drawEnemyDebug()
@@ -666,6 +711,33 @@ function drawTilesDebug()
   end
 end
 
+function drawArrowsDebug()
+  love.graphics.setColor(255, 0, 255)
+  for i, v in ipairs(arrows) do
+    local bx  = v.physics.body:getX()
+    local by  = v.physics.body:getY()
+    local x1, y1, x2, y2, x3, y3, x4, y4 = v.physics.shape:getPoints()
+
+    love.graphics.setColor(255, 0, 255, 50)
+    love.graphics.polygon(
+      "fill",
+      bx - x1, by - y1,
+      bx - x2, by - y2,
+      bx - x3, by - y3,
+      bx - x4, by - y4
+    )
+
+    love.graphics.setColor(255, 0, 255)
+      love.graphics.polygon(
+        "line",
+        bx - x1, by - y1,
+        bx - x2, by - y2,
+        bx - x3, by - y3,
+        bx - x4, by - y4
+      )
+  end
+end
+
 function gameState:quit()
 end
 
@@ -675,10 +747,10 @@ end
 function gameState:keypressed(key, unicode)
 
   if key == "w" then
-    player:jump()
+    player[1]:jump()
   end
   if key == "space" then
-    player:shot()
+    player[1]:shot()
   end
   if key == "r" then
     if debug == true then debug = false
@@ -753,12 +825,20 @@ function GameObject:_init(physicsWorld)
   self.physics.world    = physicsWorld
 end
 
-function GameObject:get_physics()
+function GameObject:getPhysics()
   return self.physics
 end
 
-function GameObject:get_physicsWorld()
+function GameObject:getPhysicsWorld()
   return self.physics.world
+end
+
+function GameObject:setPhysics(physics)
+  self.physics = physics
+end
+
+function GameObject:setPhysicsWorld(physicsWorld)
+  self.physicsWorld = physicsWorld
 end
 
 ------------
@@ -767,6 +847,7 @@ end
 function GameActor:_init(physicsWorld, x, y)
   GameObject._init(self, physicsWorld)
 
+  self.type             = nil
   self.physics.body     = love.physics.newBody(physicsWorld, x, y, "dynamic")
   self.physics.shape    = love.physics.newRectangleShape(32, 32)
   self.physics.fixture  = love.physics.newFixture(
@@ -784,16 +865,36 @@ function GameActor:moveRight()
   self.desiredVelocity = 100
 end
 
-function GameActor:get_Body()
+function GameActor:getType()
+  return self.type
+end
+
+function GameActor:getBody()
   return self.physics.body
 end
 
-function GameActor:get_Shape()
+function GameActor:getShape()
   return self.physics.shape
 end
 
-function GameActor:get_Fixture()
+function GameActor:getFixture()
   return self.physics.fixture
+end
+
+function GameActor:setType(type)
+  self.type = type
+end
+
+function GameActor:setBody(body)
+  self.physics.body = body
+end
+
+function GameActor:setShape(shape)
+  self.physics.shape = shape
+end
+
+function GameActor:setFixture(fixture)
+  self.physics.fixture = fixture
 end
 
 ------------
@@ -805,6 +906,9 @@ function Enemy:_init(physicsWorld, x, y)
   self.grounded         = false
   self.desiredVelocity  = 0
   self.stuckCounter     = 0
+
+  self:setType("Enemy")
+  self.physics.body:setUserData(self)
 end
 
 function Enemy:update(dt)
@@ -815,9 +919,9 @@ function Enemy:update(dt)
     self.stuckCounter = 0
   end
 
-  if self.physics.body:getX() > player.physics.body:getX() + 32 then
+  if self.physics.body:getX() > player[1].physics.body:getX() + 32 then
     self:moveLeft()
-  elseif self.physics.body:getX() < player.physics.body:getX() - 32 then
+  elseif self.physics.body:getX() < player[1].physics.body:getX() - 32 then
     self:moveRight()
   else
   end
@@ -836,11 +940,113 @@ function Enemy:jump()
   end
 end
 
+function Enemy:getGrounded()
+  return self.grounded
+end
+
+function Enemy:getDesiredVelocity()
+  return self.desiredVelocity
+end
+
+function Enemy:getStuckCounter()
+  return self.stuckCounter
+end
+
+function Enemy:setGrounded(grounded)
+  self.grounded = grounded
+end
+
+function Enemy:setDesiredVelocity(desiredVelocity)
+  self.desiredVelocity = desiredVelocity
+end
+
+function Enemy:setStuckCounter(stuckCounter)
+  self.stuckCounter = stuckCounter
+end
+
+------------
+-- PLAYER
+------------
+function Player:_init(physicsWorld, x, y, image, frameCount, width, height)
+  GameActor._init(self, physicsWorld, x, y)
+
+  self.type             = "Player"
+  self.sprite           = Sprite.new(self, image, frameCount, width, height)
+  self.facingRight      = true
+  self.grounded         = false
+  self.desiredVelocity  = 0
+  self.bow              = Bow.new(self, "img/bow.png", physicsWorld)
+
+  self.physics.body:setMass(0.5)
+  self.physics.body:setUserData(self)
+  self.physics.fixture:setMask(2)
+end
+
+function Player:update(dt)
+  self.sprite:update(dt)
+
+  -- i = m * dv
+  local velChange =
+    self.desiredVelocity - self.physics.body:getLinearVelocity();
+  local impulse = self.physics.body:getMass() * velChange;
+
+  self.physics.body:applyLinearImpulse(impulse, 0)
+
+  self.bow:update(dt)
+end
+
+function Player:draw()
+  self.sprite:draw(
+    self.image,
+    self.facingRight,
+    self.physics.body:getX(),
+    self.physics.body:getY()
+  )
+  self.bow:draw()
+end
+
+function Player:moveLeft()
+  if self.facingRight == true then
+    self.facingRight = false
+  end
+  self.desiredVelocity = -150
+end
+
+function Player:moveRight()
+  if self.facingRight ~= true then
+    self.facingRight = true
+  end
+  self.desiredVelocity = 150
+end
+
+function Player:jump()
+  if self.grounded == true then
+    local impulse = self.physics.body:getMass() * 500;
+    self.physics.body:applyLinearImpulse(0, -impulse)
+    self.grounded = false
+  end
+end
+
+function Player:shot()
+  self.bow:shot()
+end
+
 ------------
 -- ARROW
 ------------
-Arrow.new = function(physicsWorld, bow, angle)
+function Arrow.new(physicsWorld, bow, angle)
   local self = setmetatable({}, Arrow)
+
+  -- Rotation Matrix
+  -- x' = x\cos(ang) -y\sin(ang)
+  -- y' = x\sin(ang) +y\cos(ang)
+  local ang = math.rad(angle)
+
+  print("oi")
+  print(angle)
+  print(math.sin(ang))
+  print(math.cos(ang))
+  print("oi")
 
   self.bow              = bow
   self.sprite           = Sprite.new(self, "img/arrow.png", 1, 32, 32)
@@ -848,16 +1054,36 @@ Arrow.new = function(physicsWorld, bow, angle)
   self.physics.world    = physicsWorld
   self.physics.body     = love.physics.newBody(
                             self.physics.world,
-                            self.bow.physics.body:getX(),
-                            self.bow.physics.body:getY(),
+                            self.bow.physics.body:getX() + 16,
+                            self.bow.physics.body:getY() + 16,
                             "dynamic"
                           )
-  self.physics.shape    = love.physics.newPolygonShape(
-                            -1.4*16, 0,
-                            0, -0.1*16,
-                            0.6*16, 0,
-                            0, 0.1*16
-                          )
+
+  if math.sin(ang) == 0 and math.cos(ang) ~= 0 then
+    print("b")
+    self.physics.shape    = love.physics.newPolygonShape(
+                              0 , 5,
+                              12, 0,
+                              32, 5,
+                              12, 12
+                            )
+  elseif math.sin(ang) ~= 0 and math.cos(ang) == 0 then
+    print("c")
+    self.physics.shape    = love.physics.newPolygonShape(
+                              0  - 5/math.sin(ang) , 0/math.sin(ang)  + 5,
+                              12 - 0/math.sin(ang) , 12/math.sin(ang) + 0,
+                              32 - 5/math.sin(ang) , 32/math.sin(ang) + 5,
+                              12 - 12/math.sin(ang), 12/math.sin(ang) + 12
+                            )
+  else
+    self.physics.shape    = love.physics.newPolygonShape(
+                              0 /math.cos(ang) - 5/math.sin(ang) , 0/math.sin(ang)  + 5/math.cos(ang),
+                              12/math.cos(ang) - 0/math.sin(ang) , 12/math.sin(ang) + 0/math.cos(ang),
+                              32/math.cos(ang) - 5/math.sin(ang) , 32/math.sin(ang) + 5/math.cos(ang),
+                              12/math.cos(ang) - 12/math.sin(ang), 12/math.sin(ang) + 12/math.cos(ang)
+                            )
+  end
+
   self.physics.fixture  = love.physics.newFixture(
                             self.physics.body,
                             self.physics.shape,
@@ -869,14 +1095,15 @@ Arrow.new = function(physicsWorld, bow, angle)
   self.physics.body:isBullet()
   self.physics.body:setMass(0.1)
   self.physics.body:setGravityScale(0.5)
+  self.physics.body:setAngle(math.rad(angle))
 
   return self
 end
 
-Arrow.update = function(self, dt)
+function Arrow:update(dt)
 end
 
-Arrow.draw = function(self)
+function Arrow:draw()
   self.sprite:draw(
     self.image,
     true,
@@ -916,7 +1143,7 @@ Bow.new = function(player, image, physicsWorld)
 end
 
 Bow.update = function(self, dt)
-  self.physics.body:setPosition(player.physics.body:getPosition())
+  self.physics.body:setPosition(self.player.physics.body:getPosition())
 end
 
 Bow.draw = function(self)
@@ -933,11 +1160,11 @@ Bow.changeAngle = function(self, angle)
 end
 
 Bow.shot = function(self)
-  local arrow = Arrow.new(physicsWorld, self, self.angle)
-  table.insert(arrows, arrow)
-
   local impulse = 0.1 * 600;
   local ang = self.physics.body:getAngle()
+
+  local arrow = Arrow.new(physicsWorld, self, ang)
+  table.insert(arrows, arrow)
 
   if ang == 0 then
     arrow.physics.body:applyLinearImpulse( impulse, 0      )
@@ -961,120 +1188,13 @@ Bow.shot = function(self)
 
 end
 
-------------
--- PLAYER
-------------
-Player.new = function(x, y, image, frameCount, width, height, physicsWorld)
-  local self = setmetatable({}, Player)
-
-  self.sprite           = Sprite.new(self, image, frameCount, width, height)
-  self.facingRight      = true
-  self.grounded         = false
-  self.physics          = {}
-  self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(
-                            self.physics.world,
-                            x - self.sprite:getWidth()/2,
-                            y - self.sprite:getHeight()/2,
-                            "dynamic"
-                          )
-  self.physics.shape    = love.physics.newRectangleShape(
-                            self.sprite:getWidth(),
-                            self.sprite:getHeight()
-                          )
-  self.physics.fixture  = love.physics.newFixture(
-                            self.physics.body,
-                            self.physics.shape,
-                            1
-                          )
-  self.desiredVelocity  = 0
-  self.bow              = Bow.new(self, "img/bow.png", physicsWorld)
-
-  self.physics.body:setMass(0.5)
-  self.physics.fixture:setMask(2)
-  return self
-end
-
-Player.update = function(self, dt)
-  self.sprite:update(dt)
-
-  -- i = m * dv
-  local velChange =
-    self.desiredVelocity - self.physics.body:getLinearVelocity();
-  local impulse = self.physics.body:getMass() * velChange;
-
-  self.physics.body:applyLinearImpulse(impulse, 0)
-
-  self.bow:update(dt)
-end
-
-Player.draw = function(self)
-  self.sprite:draw(
-    self.image,
-    self.facingRight,
-    self.physics.body:getX(),
-    self.physics.body:getY()
-  )
-  self.bow:draw()
-end
-
-Player.moveLeft = function(self)
-  if self.facingRight == true then
-    self.facingRight = false
-  end
-  self.desiredVelocity = -150
-end
-
-Player.moveRight = function(self)
-  if self.facingRight ~= true then
-    self.facingRight = true
-  end
-  self.desiredVelocity = 150
-end
-
-Player.jump = function(self)
-  if self.grounded == true then
-    local impulse = self.physics.body:getMass() * 500;
-    self.physics.body:applyLinearImpulse(0, -impulse)
-    self.grounded = false
-  end
-end
-
-Player.shot = function(self)
-  self.bow:shot()
-end
-
-------------
--- FLOOR
-------------
-Floor.new = function(x, y, physicsWorld)
-  local self = self or {}
-
-  self.physics          = {}
-  self.physics.world    = physicsWorld
-  self.physics.body     = love.physics.newBody(
-                            physicsWorld,
-                            x + love.graphics.getWidth()/2 ,
-                            y
-                          )
-  self.physics.shape    = love.physics.newRectangleShape(
-                            love.graphics.getWidth(),
-                            32
-                          )
-  self.physics.fixture  = love.physics.newFixture(
-                            self.physics.body,
-                            self.physics.shape
-                          )
-
-  return self
-end
-
-------------
+ ------------
 -- SOLID TILE
 ------------
 Tile.new = function(x, y, physicsWorld)
   local self = self or {}
 
+  self.type             = "Tile"
   self.physics          = {}
   self.physics.world    = physicsWorld
   self.physics.body     = love.physics.newBody(
@@ -1091,6 +1211,8 @@ Tile.new = function(x, y, physicsWorld)
                             self.physics.body,
                             self.physics.shape
                           )
+
+  self.physics.body:setUserData(self)
 
   return self
 end
@@ -1168,3 +1290,45 @@ end
 Sprite.getHeight = function(self)
   return self.image:getHeight()
 end
+
+
+    -- v.physics.body:getX() - (0), v.physics.body:getY() - (5),
+    -- v.physics.body:getX() - (12), v.physics.body:getY() - (0),
+    -- v.physics.body:getX() - (32), v.physics.body:getY() - (5),
+    -- v.physics.body:getX() - (12), v.physics.body:getY() - (12)
+
+    -- if player[1].facingRight then
+    --   love.graphics.setColor(255, 0, 255, 50)
+    --   love.graphics.polygon(
+    --     "fill",
+    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (12), v.physics.body:getY() - (0),
+    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (12), v.physics.body:getY() - (12)
+    --   )
+    --   love.graphics.setColor(255, 0, 255)
+    --   love.graphics.polygon(
+    --     "line",
+    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (12), v.physics.body:getY() - (0),
+    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (12), v.physics.body:getY() - (12)
+    --   )
+    -- else
+    --   love.graphics.setColor(255, 0, 255, 50)
+    --   love.graphics.polygon(
+    --     "fill",
+    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (20), v.physics.body:getY() - (0),
+    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (20), v.physics.body:getY() - (12)
+    --   )
+    --   love.graphics.setColor(255, 0, 255)
+    --   love.graphics.polygon(
+    --     "line",
+    --     v.physics.body:getX() - (0), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (20), v.physics.body:getY() - (0),
+    --     v.physics.body:getX() - (32), v.physics.body:getY() - (5),
+    --     v.physics.body:getX() - (20), v.physics.body:getY() - (12)
+    --   )
+    -- end
