@@ -111,6 +111,11 @@ local soundEffect = nil
 local joystricks
 local joystick
 local joystickMenuSelected = nil
+------------
+-- HELPER
+------------
+local createJoint = false
+local arrowsId    = 1
 
 ------------
 -- LOAD
@@ -406,11 +411,19 @@ function gameState:update(dt)
     v:update(dt)
   end
 
-  arrows.update(dt)
+  for i,v in ipairs(arrows) do
+    v:update(dt)
+  end
 
   handleSpecialCollision()
 
   updateDebug()
+  if createJoint then
+    updateCreateJoint()
+  end
+end
+
+function updateCreateJoint()
 end
 
 function handleSpecialCollision()
@@ -437,6 +450,30 @@ function handleSpecialCollision()
       v.physics.body:setY(0)
     end
   end
+
+  for i,v in ipairs(arrows) do
+    if v.physics.body:getX() < -16 then
+      v.physics.body:setX(25*32 + 16)
+    elseif v.physics.body:getX() > 25*32 + 16 then
+      v.physics.body:setX(16)
+    elseif v.physics.body:getY() < 0  then
+      v.physics.body:setY(32*20)
+    elseif v.physics.body:getY() > 32*20  then
+      v.physics.body:setY(0)
+    end
+  end
+
+  -- for i,v in ipairs(arrows) do
+  --   if v.physics.body:getX() - player[1].physics.body:getX() < 32 or
+  --      player[1].physics.body:getX() - v.physics.body:getX() < 32 then
+  --        if v.physics.body:getY() - player[1].physics.body:getY() < 32 or
+  --           player[1].physics.body:getY() - v.physics.body:getY() < 32 then
+  --             if v.physics.body:getType() == "static" then
+  --               player[1].arrowsLeft = player[1].arrowsLeft + 1
+  --             end
+  --        end
+  --   end
+  -- end
 end
 
 function updateDebug()
@@ -578,9 +615,28 @@ function beginContact(a, b, coll)
 
   if a:getBody():getUserData().type == "Tile" and
       b:getBody():getUserData().type == "Enemy" then
-      enemies[1].grounded = true
-      enemies[2].grounded = true
-      enemies[3].grounded = true
+        for i,v in ipairs(enemies) do
+          enemies[i].grounded = true
+        end
+  end
+
+  if  a:getBody():getUserData().type == "Tile" and
+      b:getBody():getUserData().type == "Arrow" then
+        b:getBody():getUserData().hasCollided = true
+  end
+
+  if  a:getBody():getUserData().type == "Player" and
+      b:getBody():getUserData().type == "Arrow" then
+        if b:getBody():getType() == "static" then
+          a:getBody():getUserData().arrowsLeft = a:getBody():getUserData().arrowsLeft + 1
+        end
+  end
+
+  if  a:getBody():getUserData().type == "Enemy" and
+      b:getBody():getUserData().type == "Arrow" then
+        if b:getBody():getType() ~= "static" then
+          table.remove(enemies, b:getBody():getUserData().id)
+        end
   end
 end
 
@@ -591,10 +647,6 @@ function preSolve(a, b, coll)
 end
 
 function postSolve(a, b, coll, normalimpulse, tangentimpulse)
-  if  a:getBody():getUserData().type == "Arrow" and
-      b:getBody():getUserData().type == "Tile" then
-    love.physics.newDistanceJoint( a:getBody(), b:getBody(), a:getBody():getX(), a:getBody():getY(), b:getBody():getX(), b:getBody():getY(), false )
-  end
 end
 
 function gameState:draw()
@@ -619,10 +671,10 @@ function drawDebug()
   if(debug == true) then
 
     drawPlayerDebug()
-    -- drawBowDebug()
     drawEnemyDebug()
     drawTilesDebug()
     drawArrowsDebug()
+    drawArrowsQuantityDebug()
 
     love.graphics.setColor(255, 255, 255)
     love.graphics.print(mouseString)
@@ -712,6 +764,20 @@ function drawArrowsDebug()
       "fill",
       v.physics.body:getX(),
       v.physics.body:getY(),
+      4
+    )
+    love.graphics.setColor(255, 0, 255)
+      love.graphics.circle(
+        "line",
+        v.physics.body:getX(),
+        v.physics.body:getY(),
+        4
+      )
+    love.graphics.setColor(255, 0, 255, 50)
+    love.graphics.circle(
+      "fill",
+      v.physics.body:getX(),
+      v.physics.body:getY(),
       16
     )
     love.graphics.setColor(255, 0, 255)
@@ -720,6 +786,22 @@ function drawArrowsDebug()
         v.physics.body:getX(),
         v.physics.body:getY(),
         16
+      )
+  end
+end
+
+function tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
+end
+
+function drawArrowsQuantityDebug()
+  for i=1, player[1].arrowsLeft, 1 do
+    love.graphics.setColor(255, 255, 0)
+      love.graphics.rectangle(
+        "line",
+        75 + i * 25, 40, 15, 15
       )
   end
 end
@@ -962,7 +1044,7 @@ function Player:_init(physicsWorld, x, y, image, frameCount, width, height)
   self.grounded         = false
   self.desiredVelocity  = 0
   self.bow              = Bow.new(self, "img/bow.png", physicsWorld)
-
+  self.arrowsLeft       = 8
   self.physics.body:setMass(0.5)
   self.physics.body:setUserData(self)
   self.physics.fixture:setMask(2)
@@ -1023,6 +1105,7 @@ end
 function Arrow.new(physicsWorld, bow, angle)
   local self = setmetatable({}, Arrow)
 
+  self.id               = arrowsId
   self.bow              = bow
   self.sprite           = Sprite.new(self, "img/arrow.png", 1, 32, 32)
   self.physics          = {}
@@ -1030,27 +1113,41 @@ function Arrow.new(physicsWorld, bow, angle)
   self.physics.body     = love.physics.newBody(
                             self.physics.world,
                             self.bow.physics.body:getX() + 16,
-                            self.bow.physics.body:getY() + 16,
+                            self.bow.physics.body:getY() + 8,
                             "dynamic"
                           )
-  self.physics.shape    = love.physics.newCircleShape(16)
+  self.physics.shape    = love.physics.newCircleShape(4)
   self.physics.fixture  = love.physics.newFixture(
                             self.physics.body,
                             self.physics.shape,
                             1
                           )
+  self.type             = "Arrow"
+  self.hasCollided      = false
 
-  self.physics.fixture:setMask(2)
-  self.physics.fixture:setFilterData(1, 0, 0)
+  -- self.physics.fixture:setMask(2)
+  -- self.physics.fixture:setFilterData(0, 0, 0)
+  self.physics.fixture:setSensor(true)
+  self.physics.body:setUserData(self)
   self.physics.body:isBullet()
   self.physics.body:setMass(0.1)
   self.physics.body:setGravityScale(0.5)
   self.physics.body:setAngle(math.rad(angle))
 
+  arrowsId = arrowsId + 1
+
   return self
 end
 
+function Arrow:setHasCollided(hasCollided)
+  self.hasCollided = hasCollided
+end
+
 function Arrow:update(dt)
+  if self.hasCollided then
+    self.physics.body:setType("static")
+    self.hasCollided = false
+  end
 end
 
 function Arrow:draw()
@@ -1110,32 +1207,34 @@ Bow.changeAngle = function(self, angle)
 end
 
 Bow.shot = function(self)
-  local impulse = 0.1 * 600;
-  local ang = self.physics.body:getAngle()
+  if self.player.arrowsLeft > 0 then
+    local impulse = 0.1 * 600;
+    local ang = self.physics.body:getAngle()
 
-  local arrow = Arrow.new(physicsWorld, self, ang)
-  table.insert(arrows, arrow)
+    local arrow = Arrow.new(physicsWorld, self, ang)
+    table.insert(arrows, arrow)
+    self.player.arrowsLeft = self.player.arrowsLeft - 1
 
-  if ang == 0 then
-    arrow.physics.body:applyLinearImpulse( impulse, 0      )
-  elseif ang == 45 then
-    arrow.physics.body:applyLinearImpulse( impulse, impulse)
-  elseif ang == 90 then
-    arrow.physics.body:applyLinearImpulse(       0, impulse)
-  elseif ang == 135 then
-    arrow.physics.body:applyLinearImpulse(-impulse, impulse)
-  elseif ang == 180 then
-    arrow.physics.body:applyLinearImpulse(-impulse, 0      )
-  elseif ang == 225 then
-    arrow.physics.body:applyLinearImpulse(-impulse,-impulse)
-  elseif ang == 270 then
-    arrow.physics.body:applyLinearImpulse(       0,-impulse)
-  elseif ang == 315 then
-    arrow.physics.body:applyLinearImpulse( impulse,-impulse)
-  else
-    arrow.physics.body:applyLinearImpulse( impulse, 0      )
+    if ang == 0 then
+      arrow.physics.body:applyLinearImpulse( impulse, 0      )
+    elseif ang == 45 then
+      arrow.physics.body:applyLinearImpulse( impulse, impulse)
+    elseif ang == 90 then
+      arrow.physics.body:applyLinearImpulse(       0, impulse)
+    elseif ang == 135 then
+      arrow.physics.body:applyLinearImpulse(-impulse, impulse)
+    elseif ang == 180 then
+      arrow.physics.body:applyLinearImpulse(-impulse, 0      )
+    elseif ang == 225 then
+      arrow.physics.body:applyLinearImpulse(-impulse,-impulse)
+    elseif ang == 270 then
+      arrow.physics.body:applyLinearImpulse(       0,-impulse)
+    elseif ang == 315 then
+      arrow.physics.body:applyLinearImpulse( impulse,-impulse)
+    else
+      arrow.physics.body:applyLinearImpulse( impulse, 0      )
+    end
   end
-
 end
 
  ------------
@@ -1282,3 +1381,8 @@ end
     --     v.physics.body:getX() - (20), v.physics.body:getY() - (12)
     --   )
     -- end
+
+
+
+
+-- love.physics.newDistanceJoint( a:getBody(), b:getBody(), a:getBody():getX(), a:getBody():getY(), b:getBody():getX(), b:getBody():getY(), false )
